@@ -1,6 +1,6 @@
 const STORAGE_KEY_UTM = 'wego_utm';
 const STORAGE_KEY_REFERRER = 'wego_referrer';
-const FORM_FIELD_SELECTOR = 'input[type="hidden"].traffic-source';
+const FORM_FIELD_MARKER = 'wego-traffic-source';
 
 // Main execution
 storeTrafficParams();
@@ -40,11 +40,11 @@ function storeTrafficParams() {
 
 // Set the value of all matching form fields
 function fillReferrerFields() {
-	const referrerFields = document.querySelectorAll(FORM_FIELD_SELECTOR);
+	const referrerFields = document.querySelectorAll('input[type="hidden"]');
 	const value = determineTrafficSource();
 
 	for (const referrerField of referrerFields) {
-		if (referrerField) {
+		if (referrerField && referrerField.value === FORM_FIELD_MARKER) {
 			referrerField.value = value;
 		}
 	}
