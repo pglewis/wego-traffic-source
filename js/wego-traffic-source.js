@@ -1,10 +1,10 @@
 const STORAGE_KEY_UTM = 'wego_utm';
 const STORAGE_KEY_REFERRER = 'wego_referrer';
-const FORM_FIELD_SELECTOR = 'input[type="hidden"]#referrer';
+const FORM_FIELD_SELECTOR = 'input[type="hidden"].traffic-source';
 
 // Main execution
 storeTrafficParams();
-fillReferrerField();
+fillReferrerFields();
 
 function storeTrafficParams() {
 	// Only store if this is the first page load (storage is empty)
@@ -38,13 +38,19 @@ function storeTrafficParams() {
 	}
 }
 
-function fillReferrerField() {
-	const referrerField = document.querySelector(FORM_FIELD_SELECTOR);
-	if (referrerField) {
-		referrerField.value = determineTrafficSource();
+// Set the value of all matching form fields
+function fillReferrerFields() {
+	const referrerFields = document.querySelectorAll(FORM_FIELD_SELECTOR);
+	const value = determineTrafficSource();
+
+	for (const referrerField of referrerFields) {
+		if (referrerField) {
+			referrerField.value = value;
+		}
 	}
 }
 
+// Business logic for the string to be used as the hidden form field's value
 function determineTrafficSource() {
 	const storedUtm = sessionStorage.getItem(STORAGE_KEY_UTM);
 	const storedRef = sessionStorage.getItem(STORAGE_KEY_REFERRER);
@@ -84,6 +90,6 @@ function determineTrafficSource() {
 		return `Referral from ${refUrl.hostname}`;
 	}
 
-	// Default to "Direct"
+	// "Direct" if we have no other information
 	return 'Direct';
 }
