@@ -30,9 +30,17 @@ function storeTrafficParams() {
 		sessionStorage.setItem(STORAGE_KEY_UTM, JSON.stringify(utmParams));
 	}
 
-	// Save referrer
+	// Save referrer if it's not from the same host
 	if (document.referrer) {
-		sessionStorage.setItem(STORAGE_KEY_REFERRER, document.referrer);
+		try {
+			const referrerUrl = new URL(document.referrer);
+			const currentUrl = new URL(window.location.href);
+			if (referrerUrl.hostname !== currentUrl.hostname) {
+				sessionStorage.setItem(STORAGE_KEY_REFERRER, document.referrer);
+			}
+		} catch {
+			// If URL parsing fails, skip storing the referrer
+		}
 	}
 }
 
