@@ -25,23 +25,25 @@ function storeTrafficParams() {
 		}
 	}
 
-	// Save any UTM data we found
-	if (Object.keys(utmParams).length > 0) {
-		sessionStorage.setItem(STORAGE_KEY_UTM, JSON.stringify(utmParams));
-	}
+	// Always save UTM data, even if empty
+	sessionStorage.setItem(STORAGE_KEY_UTM, JSON.stringify(utmParams));
 
-	// Save referrer if it's not from the same host
+	// Check for external referrer
+	let referrer = '';
 	if (document.referrer) {
 		try {
 			const referrerUrl = new URL(document.referrer);
 			const currentUrl = new URL(window.location.href);
 			if (referrerUrl.hostname !== currentUrl.hostname) {
-				sessionStorage.setItem(STORAGE_KEY_REFERRER, document.referrer);
+				referrer = document.referrer;
 			}
 		} catch {
-			// If URL parsing fails, skip storing the referrer
+			// If URL parsing fails, leave referrer as empty string
 		}
 	}
+
+	// Always save referrer, even if empty
+	sessionStorage.setItem(STORAGE_KEY_REFERRER, referrer);
 }
 
 // Set the value of all matching form fields

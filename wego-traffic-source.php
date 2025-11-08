@@ -2,7 +2,7 @@
 /*
 Plugin Name: WeGo Traffic Source
 Description: Auto-fills any hidden form fields that have a default value of wego-traffic-source
-Version: 1.0.1
+Version: 1.0.2
 Author: WeGo Unlimited
 License: GPLv2 or later
 Text Domain: wego-traffic-source
@@ -34,13 +34,12 @@ class WeGo_Traffic_Source {
 	 * Front end scripts
 	 */
 	public static function enqueue_scripts() {
-		wp_enqueue_script( 'wego-traffic-source', self::$plugin_url . 'js/wego-traffic-source.js', array(), self::$plugin_version, true );
-
-		// Load the javascript as an ES6 module.  Strict mode will used, variables will have file-level scope
-		// execution is deferred (the full DOM is parsed and available at execution time)
-		wp_script_add_data( 'wego-traffic-source', 'type', 'module' );
+		// Enqueue the script as an ES module (adds type="module"). Module scripts
+		// run in strict mode and have module-level scope (top-level vars are not
+		// globals). Module scripts are deferred by default and execute after the
+		// document is parsed, so the DOM is available at execution time.
+		wp_enqueue_script_module( 'wego-traffic-source', self::$plugin_url . 'js/wego-traffic-source.js', array(), self::$plugin_version );
 	}
-
 }
 
 /**
