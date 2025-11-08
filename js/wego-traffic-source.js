@@ -1,17 +1,15 @@
 const STORAGE_KEY_UTM = 'wego_utm';
 const STORAGE_KEY_REFERRER = 'wego_referrer';
-const FORM_FIELD_MARKER = 'wego-traffic-source';
+const FORM_FIELD_TARGET_VALUE = 'wego-traffic-source';
 
 // Main execution
 storeTrafficParams();
 fillReferrerFields();
 
 function storeTrafficParams() {
-	// Only store if this is the first page load (storage is empty)
+	// Early exit if we already have first-page-load data, don't overwrite
 	const existingUtm = sessionStorage.getItem(STORAGE_KEY_UTM);
 	const existingRef = sessionStorage.getItem(STORAGE_KEY_REFERRER);
-
-	// Early exit if we already have first-page-load data, don't overwrite
 	if (existingUtm || existingRef) {
 		return;
 	}
@@ -40,12 +38,13 @@ function storeTrafficParams() {
 
 // Set the value of all matching form fields
 function fillReferrerFields() {
-	const referrerFields = document.querySelectorAll('input[type="hidden"]');
+	const hiddenFields = document.querySelectorAll('input[type="hidden"]');
 	const value = determineTrafficSource();
 
-	for (const referrerField of referrerFields) {
-		if (referrerField && referrerField.value === FORM_FIELD_MARKER) {
-			referrerField.value = value;
+	// Check hidden fields for ones we're targeting
+	for (const hiddenField of hiddenFields) {
+		if (hiddenField.value.toLowerCase() === FORM_FIELD_TARGET_VALUE.toLowerCase()) {
+			hiddenField.value = value;
 		}
 	}
 }
@@ -55,12 +54,13 @@ function determineTrafficSource() {
 	const storedUtm = sessionStorage.getItem(STORAGE_KEY_UTM);
 	const storedRef = sessionStorage.getItem(STORAGE_KEY_REFERRER);
 
-	// Check for PPC
+	// Check for UTM data - return early if we have tracking
 	if (storedUtm) {
 		const utmData = JSON.parse(storedUtm);
-		const medium = (utmData.utm_medium || '').toLowerCase();
-		if (medium && (medium.includes('cpc') || medium.includes('ppc') || medium.includes('paid'))) {
-			return 'PPC';
+		const medium = utmData.utm_medium;
+		if (medium) {
+			const term = utmData.utm_term;
+			return term ? `Tracked: ${medium} - ${term}` : `Tracked: ${medium}`;
 		}
 	}
 
@@ -80,11 +80,7 @@ function determineTrafficSource() {
 		};
 		const engine = Object.keys(searchEngines).find(e => refUrl.hostname.includes(e));
 		if (engine) {
-			const searchParams = new URLSearchParams(refUrl.search);
-			const searchTerm = searchParams.get(searchEngines[engine]);
-			return searchTerm ?
-				`Search: ${engine} - "${searchTerm}"` :
-				`Search: ${engine}`;
+			return `Organic Search: ${engine}`;
 		}
 		// External referral
 		return `Referral from ${refUrl.hostname}`;

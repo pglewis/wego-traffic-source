@@ -35,6 +35,9 @@ class WeGo_Traffic_Source {
 	 */
 	public static function enqueue_scripts() {
 		wp_enqueue_script( 'wego-traffic-source', self::$plugin_url . 'js/wego-traffic-source.js', array(), self::$plugin_version, true );
+
+		// Load the javascript as an ES6 module.  Strict mode will used, variables will have file-level scope
+		// execution is deferred (the full DOM is parsed and available at execution time)
 		wp_script_add_data( 'wego-traffic-source', 'type', 'module' );
 	}
 
