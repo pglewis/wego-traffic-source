@@ -2,7 +2,7 @@
 /*
 Plugin Name: WeGo Traffic Source
 Description: Auto-fills any hidden form fields that have a default value of wego-traffic-source
-Version: 1.0.0
+Version: 1.0.1
 Author: WeGo Unlimited
 License: GPLv2 or later
 Text Domain: wego-traffic-source
