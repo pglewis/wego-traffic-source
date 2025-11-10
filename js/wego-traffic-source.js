@@ -1,10 +1,12 @@
 const STORAGE_KEY_UTM = 'wego_utm';
 const STORAGE_KEY_REFERRER = 'wego_referrer';
 const FORM_FIELD_TARGET_VALUE = 'wego-traffic-source';
+const API_ENDPOINT_TEL_CLICK = '/wp-json/wego/v1/track-tel-click';
 
 // Main execution
+setupEventListeners();
 storeTrafficParams();
-fillReferrerFields();
+fillFormFields();
 
 function storeTrafficParams() {
 	// Early exit if we already have first-page-load data, don't overwrite
@@ -31,6 +33,7 @@ function storeTrafficParams() {
 	// Check for external referrer
 	let referrer = '';
 	if (document.referrer) {
+		// Don't log ourself as referrer
 		try {
 			const referrerUrl = new URL(document.referrer);
 			const currentUrl = new URL(window.location.href);
@@ -47,7 +50,7 @@ function storeTrafficParams() {
 }
 
 // Set the value of all matching form fields
-function fillReferrerFields() {
+function fillFormFields() {
 	const hiddenFields = document.querySelectorAll('input[type="hidden"]');
 	const value = determineTrafficSource();
 
@@ -98,4 +101,32 @@ function determineTrafficSource() {
 
 	// "Direct" if we have no other information
 	return 'Direct';
+}
+
+function setupEventListeners() {
+	// Track tel link clicks
+	document.addEventListener('click', handleTelLinkClick);
+}
+
+function handleTelLinkClick(e) {
+	const target = e.target.closest('a[href^="tel:"]');
+	if (target) {
+		const phoneNumber = target.getAttribute('href').replace('tel:', '');
+		const trafficSource = determineTrafficSource();
+
+		// Send to WordPress REST API
+		fetch(API_ENDPOINT_TEL_CLICK, {
+			method: 'POST',
+			headers: {
+				'Content-Type': 'application/json',
+			},
+			body: JSON.stringify({
+				phone_number: phoneNumber,
+				traffic_source: trafficSource,
+				timestamp: new Date().toISOString()
+			})
+		}).catch(err => {
+			console.error('Failed to track tel click:', err);
+		});
+	}
 }
