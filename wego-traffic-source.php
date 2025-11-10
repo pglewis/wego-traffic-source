@@ -2,7 +2,7 @@
 /*
 Plugin Name: WeGo Traffic Source
 Description: Auto-fills any hidden form fields with a default value of wego-traffic-source and logs all tel: link clicks
-Version: 2.0.0
+Version: 2.0.1
 Requires at least: 6.5
 Author: WeGo Unlimited
 License: GPLv2 or later
@@ -39,6 +39,8 @@ class WeGo_Traffic_Source {
 		// Add custom columns to admin
 		add_filter( 'manage_wego_tel_click_posts_columns', array( 'WeGo_Traffic_Source', 'add_custom_columns' ) );
 		add_action( 'manage_wego_tel_click_posts_custom_column', array( 'WeGo_Traffic_Source', 'render_custom_columns' ), 10, 2 );
+		add_filter( 'manage_edit-wego_tel_click_sortable_columns', array( 'WeGo_Traffic_Source', 'make_columns_sortable' ) );
+		add_action( 'pre_get_posts', array( 'WeGo_Traffic_Source', 'handle_column_sorting' ) );
 	}
 
 	/**
@@ -116,6 +118,7 @@ class WeGo_Traffic_Source {
 		$new_columns = array();
 		$new_columns['cb'] = $columns['cb'];
 		$new_columns['title'] = __( 'Phone Number', 'wego-traffic-source' );
+		$new_columns['click_date_time'] = __( 'Click Date/Time', 'wego-traffic-source' );
 		$new_columns['traffic_source'] = __( 'Traffic Source', 'wego-traffic-source' );
 		return $new_columns;
 	}
@@ -124,9 +127,42 @@ class WeGo_Traffic_Source {
 	 * Render custom column content
 	 */
 	public static function render_custom_columns( $column, $post_id ) {
-		if ( $column === 'traffic_source' ) {
+		if ( $column === 'click_date_time' ) {
+			$post = get_post( $post_id );
+			$date_time = wp_date( 'Y-m-d H:i:s', strtotime( $post->post_date ) );
+			echo esc_html( $date_time );
+		} elseif ( $column === 'traffic_source' ) {
 			$traffic_source = get_post_meta( $post_id, 'traffic_source', true );
 			echo esc_html( $traffic_source ? $traffic_source : '—' );
+		}
+	}
+
+	/**
+	 * Make columns sortable
+	 */
+	public static function make_columns_sortable( $columns ) {
+		$columns['click_date_time'] = 'post_date';
+		$columns['traffic_source'] = 'traffic_source';
+		return $columns;
+	}
+
+	/**
+	 * Handle column sorting
+	 */
+	public static function handle_column_sorting( $query ) {
+		if ( ! is_admin() || ! $query->is_main_query() ) {
+			return;
+		}
+
+		if ( $query->get( 'post_type' ) !== 'wego_tel_click' ) {
+			return;
+		}
+
+		$orderby = $query->get( 'orderby' );
+
+		if ( $orderby === 'traffic_source' ) {
+			$query->set( 'meta_key', 'traffic_source' );
+			$query->set( 'orderby', 'meta_value' );
 		}
 	}
 }
