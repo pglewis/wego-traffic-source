@@ -122,8 +122,7 @@ function handleTelLinkClick(e) {
 			},
 			body: JSON.stringify({
 				phone_number: phoneNumber,
-				traffic_source: trafficSource,
-				timestamp: new Date().toISOString()
+				traffic_source: trafficSource
 			})
 		}).catch(err => {
 			console.error('Failed to track tel click:', err);

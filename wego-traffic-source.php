@@ -1,8 +1,9 @@
 <?php
 /*
 Plugin Name: WeGo Traffic Source
-Description: Auto-fills any hidden form fields that have a default value of wego-traffic-source
+Description: Auto-fills any hidden form fields with a default value of wego-traffic-source and logs all tel: link clicks
 Version: 2.0.0
+Requires at least: 6.5
 Author: WeGo Unlimited
 License: GPLv2 or later
 Text Domain: wego-traffic-source
@@ -34,6 +35,10 @@ class WeGo_Traffic_Source {
 
 		// Register REST API endpoint
 		add_action( 'rest_api_init', array( 'WeGo_Traffic_Source', 'register_rest_routes' ) );
+
+		// Add custom columns to admin
+		add_filter( 'manage_wego_tel_click_posts_columns', array( 'WeGo_Traffic_Source', 'add_custom_columns' ) );
+		add_action( 'manage_wego_tel_click_posts_custom_column', array( 'WeGo_Traffic_Source', 'render_custom_columns' ), 10, 2 );
 	}
 
 	/**
@@ -73,7 +78,7 @@ class WeGo_Traffic_Source {
 		register_rest_route( 'wego/v1', '/track-tel-click', array(
 			'methods' => 'POST',
 			'callback' => array( 'WeGo_Traffic_Source', 'handle_tel_click' ),
-			'permission_callback' => '__return_true', // Allow unauthenticated requests for now
+			'permission_callback' => '__return_true', // Allow unauthenticated requests
 		) );
 	}
 
@@ -83,7 +88,6 @@ class WeGo_Traffic_Source {
 	public static function handle_tel_click( $request ) {
 		$phone_number = sanitize_text_field( $request->get_param( 'phone_number' ) );
 		$traffic_source = sanitize_text_field( $request->get_param( 'traffic_source' ) );
-		$timestamp = sanitize_text_field( $request->get_param( 'timestamp' ) );
 
 		// Create new post
 		$post_id = wp_insert_post( array(
@@ -92,7 +96,6 @@ class WeGo_Traffic_Source {
 			'post_status' => 'publish',
 			'meta_input' => array(
 				'traffic_source' => $traffic_source,
-				'click_timestamp' => $timestamp,
 			),
 		) );
 
@@ -104,6 +107,27 @@ class WeGo_Traffic_Source {
 			'success' => true,
 			'post_id' => $post_id,
 		) );
+	}
+
+	/**
+	 * Add custom columns to Tel Clicks admin list
+	 */
+	public static function add_custom_columns( $columns ) {
+		$new_columns = array();
+		$new_columns['cb'] = $columns['cb'];
+		$new_columns['title'] = __( 'Phone Number', 'wego-traffic-source' );
+		$new_columns['traffic_source'] = __( 'Traffic Source', 'wego-traffic-source' );
+		return $new_columns;
+	}
+
+	/**
+	 * Render custom column content
+	 */
+	public static function render_custom_columns( $column, $post_id ) {
+		if ( $column === 'traffic_source' ) {
+			$traffic_source = get_post_meta( $post_id, 'traffic_source', true );
+			echo esc_html( $traffic_source ? $traffic_source : '—' );
+		}
 	}
 }
 
