@@ -30,6 +30,12 @@ class WeGo_Tel_Click_Post_Type {
 	const EXPORT_ACTION = 'export_tel_clicks_csv';
 
 	/**
+	 * Date range filter parameter names
+	 */
+	const DATE_FROM_PARAM = 'date_from';
+	const DATE_TO_PARAM = 'date_to';
+
+	/**
 	 * Date/time display format
 	 */
 	const DATETIME_FORMAT = 'Y-m-d g:i a';
@@ -87,8 +93,22 @@ class WeGo_Tel_Click_Post_Type {
 				'supports' => array( 'title' ),
 				'menu_icon' => 'dashicons-phone',
 				'menu_position' => 58.8,
+				'show_in_admin_bar' => false,
 			)
 		);
+
+		// Remove the built-in month dropdown filter
+		add_filter( 'disable_months_dropdown', array( __CLASS__, 'disable_months_dropdown' ), 10, 2 );
+	}
+
+	/**
+	 * Disable the built-in month dropdown for Tel Clicks post type
+	 */
+	public static function disable_months_dropdown( $disable, $post_type ) {
+		if ( $post_type === self::POST_TYPE_SLUG ) {
+			return true;
+		}
+		return $disable;
 	}
 
 	/**
@@ -165,6 +185,13 @@ class WeGo_Tel_Click_Post_Type {
 		}
 
 		echo '</select>';
+
+		// Add date range filter inputs
+		$date_from = isset( $_GET[ self::DATE_FROM_PARAM ] ) ? sanitize_text_field( $_GET[ self::DATE_FROM_PARAM ] ) : '';
+		$date_to = isset( $_GET[ self::DATE_TO_PARAM ] ) ? sanitize_text_field( $_GET[ self::DATE_TO_PARAM ] ) : '';
+
+		echo '<input type="date" name="' . esc_attr( self::DATE_FROM_PARAM ) . '" value="' . esc_attr( $date_from ) . '" placeholder="' . esc_attr__( 'From Date', self::$text_domain ) . '" style="margin-left: 5px;">';
+		echo '<input type="date" name="' . esc_attr( self::DATE_TO_PARAM ) . '" value="' . esc_attr( $date_to ) . '" placeholder="' . esc_attr__( 'To Date', self::$text_domain ) . '" style="margin-left: 5px;">';
 	}
 
 	/**
@@ -223,6 +250,28 @@ class WeGo_Tel_Click_Post_Type {
 					'value' => sanitize_text_field( $_GET[ self::TRAFFIC_SOURCE_FILTER_PARAM ] ),
 				),
 			) );
+		}
+
+		// Filter by date range if selected
+		$date_from = isset( $_GET[ self::DATE_FROM_PARAM ] ) ? sanitize_text_field( $_GET[ self::DATE_FROM_PARAM ] ) : '';
+		$date_to = isset( $_GET[ self::DATE_TO_PARAM ] ) ? sanitize_text_field( $_GET[ self::DATE_TO_PARAM ] ) : '';
+
+		if ( ! empty( $date_from ) || ! empty( $date_to ) ) {
+			$date_query = array();
+
+			if ( ! empty( $date_from ) ) {
+				$date_query['after'] = $date_from;
+			}
+
+			if ( ! empty( $date_to ) ) {
+				// Include the entire end date by setting time to end of day
+				$date_query['before'] = $date_to . ' 23:59:59';
+			}
+
+			if ( ! empty( $date_query ) ) {
+				$date_query['inclusive'] = true;
+				$query->set( 'date_query', array( $date_query ) );
+			}
 		}
 	}
 
@@ -298,9 +347,12 @@ class WeGo_Tel_Click_Post_Type {
 			);
 		}
 
-		// Preserve date filter if set
-		if ( ! empty( $_GET['m'] ) ) {
-			$url = add_query_arg( 'm', sanitize_text_field( $_GET['m'] ), $url );
+		// Preserve date range filters if set
+		if ( ! empty( $_GET[ self::DATE_FROM_PARAM ] ) ) {
+			$url = add_query_arg( self::DATE_FROM_PARAM, sanitize_text_field( $_GET[ self::DATE_FROM_PARAM ] ), $url );
+		}
+		if ( ! empty( $_GET[ self::DATE_TO_PARAM ] ) ) {
+			$url = add_query_arg( self::DATE_TO_PARAM, sanitize_text_field( $_GET[ self::DATE_TO_PARAM ] ), $url );
 		}
 
 		// Add nonce for security
@@ -348,15 +400,25 @@ class WeGo_Tel_Click_Post_Type {
 			);
 		}
 
-		// Apply date filter if set (WordPress built-in date filter uses 'm' parameter)
-		if ( ! empty( $_GET['m'] ) ) {
-			$m = sanitize_text_field( $_GET['m'] );
-			// Format is YYYYMM (e.g., 202511 for November 2025)
-			if ( strlen( $m ) === 6 ) {
-				$year = substr( $m, 0, 4 );
-				$month = substr( $m, 4, 2 );
-				$args['year'] = intval( $year );
-				$args['monthnum'] = intval( $month );
+		// Apply date range filter if set
+		$date_from = isset( $_GET[ self::DATE_FROM_PARAM ] ) ? sanitize_text_field( $_GET[ self::DATE_FROM_PARAM ] ) : '';
+		$date_to = isset( $_GET[ self::DATE_TO_PARAM ] ) ? sanitize_text_field( $_GET[ self::DATE_TO_PARAM ] ) : '';
+
+		if ( ! empty( $date_from ) || ! empty( $date_to ) ) {
+			$date_query = array();
+
+			if ( ! empty( $date_from ) ) {
+				$date_query['after'] = $date_from;
+			}
+
+			if ( ! empty( $date_to ) ) {
+				// Include the entire end date by setting time to end of day
+				$date_query['before'] = $date_to . ' 23:59:59';
+			}
+
+			if ( ! empty( $date_query ) ) {
+				$date_query['inclusive'] = true;
+				$args['date_query'] = array( $date_query );
 			}
 		}
 
