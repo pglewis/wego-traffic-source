@@ -17,7 +17,7 @@ require_once __DIR__ . '/class-wego-tel-click-post-type.php';
 
 class WeGo_Traffic_Source {
 	const REST_NAMESPACE = 'wego/v1';
-	const REST_TRACK_TEL_CLICK_ENDPOINT = '/track-tel-click';
+	const REST_TRACK_TEL_CLICK_ROUTE = '/track-tel-click';
 
 	public static $plugin_url;
 	public static $plugin_dir;
@@ -66,17 +66,21 @@ class WeGo_Traffic_Source {
 	 * Register REST API routes
 	 */
 	public static function register_rest_routes() {
-		register_rest_route( self::REST_NAMESPACE, self::REST_TRACK_TEL_CLICK_ENDPOINT, array(
-			'methods' => 'POST',
-			'callback' => array( __CLASS__, 'handle_tel_click' ),
-			'permission_callback' => '__return_true', // Allow unauthenticated requests
-		) );
+		register_rest_route(
+			self::REST_NAMESPACE,
+			self::REST_TRACK_TEL_CLICK_ROUTE,
+			array(
+				'methods' => 'POST',
+				'callback' => array( __CLASS__, 'log_tel_click' ),
+				'permission_callback' => '__return_true', // Allow unauthenticated requests
+			)
+		);
 	}
 
 	/**
-	 * Handle tel click tracking
+	 * Log tel clicks with traffic source tracking
 	 */
-	public static function handle_tel_click( $request ) {
+	public static function log_tel_click( $request ) {
 		$phone_number = sanitize_text_field( $request->get_param( 'phone_number' ) );
 		$traffic_source = sanitize_text_field( $request->get_param( 'traffic_source' ) );
 
