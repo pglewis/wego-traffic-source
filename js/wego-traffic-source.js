@@ -85,16 +85,18 @@ function determineTrafficSource() {
 		} catch {
 			return 'Direct';
 		}
+
 		const searchEngines = {
-			'google': 'q',
-			'bing': 'q',
-			'yahoo': 'p',
-			'duckduckgo': 'q'
+			'google': 'Google',
+			'bing': 'Bing',
+			'yahoo': 'Yahoo',
+			'duckduckgo': 'DuckDuckGo'
 		};
-		const engine = Object.keys(searchEngines).find(e => refUrl.hostname.includes(e));
+		const engine = Object.keys(searchEngines).find(e => refUrl.hostname.toLowerCase().includes(e));
 		if (engine) {
-			return `Organic Search: ${engine}`;
+			return `Organic Search: ${searchEngines[engine]}`;
 		}
+
 		// External referral
 		return `Referral from ${refUrl.hostname}`;
 	}
