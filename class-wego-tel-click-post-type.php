@@ -184,7 +184,7 @@ class WeGo_Tel_Click_Post_Type {
 			$query->set( 'orderby', 'meta_value' );
 		}
 
-		// Default sort by date DESC if not manually set
+		// Default sort by date DESC if not manually set (most recent first)
 		if ( ! isset( $_GET['orderby'] ) && ! isset( $_GET['order'] ) ) {
 			// Redirect to same page with orderby parameters to make UI reflect sort state
 			$redirect_url = add_query_arg( array(
