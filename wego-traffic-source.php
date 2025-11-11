@@ -41,6 +41,10 @@ class WeGo_Traffic_Source {
 		add_action( 'manage_wego_tel_click_posts_custom_column', array( 'WeGo_Traffic_Source', 'render_custom_columns' ), 10, 2 );
 		add_filter( 'manage_edit-wego_tel_click_sortable_columns', array( 'WeGo_Traffic_Source', 'make_columns_sortable' ) );
 		add_action( 'pre_get_posts', array( 'WeGo_Traffic_Source', 'handle_column_sorting' ) );
+
+		// Add metabox to edit page
+		add_action( 'add_meta_boxes_wego_tel_click', array( 'WeGo_Traffic_Source', 'add_traffic_source_metabox' ) );
+		add_action( 'save_post_wego_tel_click', array( 'WeGo_Traffic_Source', 'save_traffic_source_metabox' ) );
 	}
 
 	/**
@@ -164,6 +168,50 @@ class WeGo_Traffic_Source {
 			$query->set( 'meta_key', 'traffic_source' );
 			$query->set( 'orderby', 'meta_value' );
 		}
+	}
+
+	/**
+	 * Add traffic source metabox to edit page
+	 */
+	public static function add_traffic_source_metabox() {
+		add_meta_box(
+			'wego_traffic_source_metabox',
+			__( 'Traffic Source', 'wego-traffic-source' ),
+			array( 'WeGo_Traffic_Source', 'render_traffic_source_metabox' ),
+			'wego_tel_click',
+			'normal',
+			'high'
+		);
+	}
+
+	/**
+	 * Render traffic source metabox
+	 */
+	public static function render_traffic_source_metabox( $post ) {
+		$traffic_source = get_post_meta( $post->ID, 'traffic_source', true );
+		wp_nonce_field( 'wego_traffic_source_nonce', 'wego_traffic_source_nonce' );
+		?>
+		<p>
+			<label for="wego_traffic_source"><?php esc_html_e( 'Traffic Source:', 'wego-traffic-source' ); ?></label>
+			<input type="text" id="wego_traffic_source" name="wego_traffic_source" value="<?php echo esc_attr( $traffic_source ); ?>" style="width: 100%;" readonly>
+		</p>
+		<?php
+	}
+
+	/**
+	 * Save traffic source metabox
+	 */
+	public static function save_traffic_source_metabox( $post_id ) {
+		if ( ! isset( $_POST['wego_traffic_source_nonce'] ) || ! wp_verify_nonce( $_POST['wego_traffic_source_nonce'], 'wego_traffic_source_nonce' ) ) {
+			return;
+		}
+
+		if ( defined( 'DOING_AUTOSAVE' ) && DOING_AUTOSAVE ) {
+			return;
+		}
+
+		// Don't allow direct editing of traffic_source via the metabox (readonly field)
+		// It should only be set when the tel click is tracked via the API
 	}
 }
 
