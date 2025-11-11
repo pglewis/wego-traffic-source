@@ -1,7 +1,7 @@
 <?php
 /*
 Plugin Name: WeGo Traffic Source
-Description: Auto-fills any hidden form fields with a default value of wego-traffic-source and logs all tel: link clicks
+Description: Auto-fills traffic source fields (create a hidden field with the default value of wego-traffic-source) and logs all tel: link clicks
 Version: 2.0.1
 Requires at least: 6.5
 Author: WeGo Unlimited
