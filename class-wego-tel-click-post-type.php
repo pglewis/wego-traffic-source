@@ -38,7 +38,7 @@ class WeGo_Tel_Click_Post_Type {
 	/**
 	 * Date/time display format
 	 */
-	const DATETIME_FORMAT = 'Y-m-d g:i a';
+	const DATETIME_FORMAT = 'm/d/Y g:i a';
 
 	/**
 	 * Nonce name for metabox security
@@ -190,8 +190,26 @@ class WeGo_Tel_Click_Post_Type {
 		$date_from = isset( $_GET[ self::DATE_FROM_PARAM ] ) ? sanitize_text_field( $_GET[ self::DATE_FROM_PARAM ] ) : '';
 		$date_to = isset( $_GET[ self::DATE_TO_PARAM ] ) ? sanitize_text_field( $_GET[ self::DATE_TO_PARAM ] ) : '';
 
-		echo '<input type="date" name="' . esc_attr( self::DATE_FROM_PARAM ) . '" value="' . esc_attr( $date_from ) . '" placeholder="' . esc_attr__( 'From Date', self::$text_domain ) . '" style="margin-left: 5px;">';
-		echo '<input type="date" name="' . esc_attr( self::DATE_TO_PARAM ) . '" value="' . esc_attr( $date_to ) . '" placeholder="' . esc_attr__( 'To Date', self::$text_domain ) . '" style="margin-left: 5px;">';
+		echo '<label for="' . esc_attr( self::DATE_FROM_PARAM ) . '" style="margin-left: 10px;">' . esc_html__( 'From:', self::$text_domain ) . '</label>';
+		echo '<input type="date" id="' . esc_attr( self::DATE_FROM_PARAM ) . '" name="' . esc_attr( self::DATE_FROM_PARAM ) . '" value="' . esc_attr( $date_from ) . '" style="margin-left: 3px;">';
+		echo '<label for="' . esc_attr( self::DATE_TO_PARAM ) . '" style="margin-left: 5px;">' . esc_html__( 'To:', self::$text_domain ) . '</label>';
+		echo '<input type="date" id="' . esc_attr( self::DATE_TO_PARAM ) . '" name="' . esc_attr( self::DATE_TO_PARAM ) . '" value="' . esc_attr( $date_to ) . '" style="margin-left: 3px;">';
+
+		// Add spacing before the Filter button with high specificity to override WordPress defaults
+		echo '<style>.post-type-wego_tel_click .tablenav .actions #post-query-submit { margin-left: 5px !important; }</style>';
+
+		// Add reset filters button (always visible, disabled when no filters are active)
+		$has_filters = ! empty( $_GET[ self::TRAFFIC_SOURCE_FILTER_PARAM ] ) || ! empty( $date_from ) || ! empty( $date_to );
+		$reset_url = admin_url( 'edit.php' );
+		$reset_url = add_query_arg( array(
+			'post_type' => self::POST_TYPE_SLUG,
+		), $reset_url );
+
+		if ( $has_filters ) {
+			echo '<a href="' . esc_url( $reset_url ) . '" class="button" style="margin-left: 5px;">' . esc_html__( 'Reset Filters', self::$text_domain ) . '</a>';
+		} else {
+			echo '<a href="#" class="button disabled" style="margin-left: 5px; pointer-events: none; opacity: 0.5;" disabled>' . esc_html__( 'Reset Filters', self::$text_domain ) . '</a>';
+		}
 	}
 
 	/**
