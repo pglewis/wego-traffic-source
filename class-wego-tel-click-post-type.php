@@ -25,6 +25,11 @@ class WeGo_Tel_Click_Post_Type {
 	const TRAFFIC_SOURCE_FILTER_PARAM = 'traffic_source_filter';
 
 	/**
+	 * Export action name
+	 */
+	const EXPORT_ACTION = 'export_tel_clicks_csv';
+
+	/**
 	 * Date/time display format
 	 */
 	const DATETIME_FORMAT = 'Y-m-d g:i a';
@@ -58,6 +63,10 @@ class WeGo_Tel_Click_Post_Type {
 		// Edit screen metabox
 		add_action( 'add_meta_boxes_wego_tel_click', array( __CLASS__, 'add_metaboxes' ) );
 		add_action( 'save_post_wego_tel_click', array( __CLASS__, 'save_metabox' ) );
+
+		// CSV Export
+		add_action( 'admin_action_' . self::EXPORT_ACTION, array( __CLASS__, 'export_csv' ) );
+		add_filter( 'views_edit-wego_tel_click', array( __CLASS__, 'add_export_button' ) );
 	}
 
 	/**
@@ -268,6 +277,133 @@ class WeGo_Tel_Click_Post_Type {
 		}
 
 		// Intentionally empty - traffic_source should only be set via the tracking API
+	}
+
+	/**
+	 * Add Export to CSV button above the posts table
+	 */
+	public static function add_export_button( $views ) {
+		$url = admin_url( 'edit.php' );
+		$url = add_query_arg( array(
+			'post_type' => self::POST_TYPE_SLUG,
+			'action' => self::EXPORT_ACTION,
+		), $url );
+
+		// Preserve current filters if set
+		if ( ! empty( $_GET[ self::TRAFFIC_SOURCE_FILTER_PARAM ] ) ) {
+			$url = add_query_arg(
+				self::TRAFFIC_SOURCE_FILTER_PARAM,
+				sanitize_text_field( $_GET[ self::TRAFFIC_SOURCE_FILTER_PARAM ] ),
+				$url
+			);
+		}
+
+		// Preserve date filter if set
+		if ( ! empty( $_GET['m'] ) ) {
+			$url = add_query_arg( 'm', sanitize_text_field( $_GET['m'] ), $url );
+		}
+
+		// Add nonce for security
+		$url = wp_nonce_url( $url, self::EXPORT_ACTION );
+
+		echo '<div style="margin: 10px 0;">';
+		echo '<a href="' . esc_url( $url ) . '" class="button button-primary" style="margin-left: 5px;">';
+		echo esc_html__( 'Export to CSV', self::$text_domain );
+		echo '</a>';
+		echo '</div>';
+
+		return $views;
+	}
+
+	/**
+	 * Export tel clicks to CSV
+	 */
+	public static function export_csv() {
+		// Verify nonce
+		if ( ! isset( $_GET['_wpnonce'] ) || ! wp_verify_nonce( $_GET['_wpnonce'], self::EXPORT_ACTION ) ) {
+			wp_die( __( 'Security check failed', self::$text_domain ) );
+		}
+
+		// Check user capabilities
+		if ( ! current_user_can( 'edit_posts' ) ) {
+			wp_die( __( 'You do not have permission to export data', self::$text_domain ) );
+		}
+
+		// Build query args
+		$args = array(
+			'post_type' => self::POST_TYPE_SLUG,
+			'posts_per_page' => -1,
+			'post_status' => 'publish',
+			'orderby' => 'date',
+			'order' => 'DESC',
+		);
+
+		// Apply traffic source filter if set
+		if ( ! empty( $_GET[ self::TRAFFIC_SOURCE_FILTER_PARAM ] ) ) {
+			$args['meta_query'] = array(
+				array(
+					'key'   => self::COLUMN_TRAFFIC_SOURCE,
+					'value' => sanitize_text_field( $_GET[ self::TRAFFIC_SOURCE_FILTER_PARAM ] ),
+				),
+			);
+		}
+
+		// Apply date filter if set (WordPress built-in date filter uses 'm' parameter)
+		if ( ! empty( $_GET['m'] ) ) {
+			$m = sanitize_text_field( $_GET['m'] );
+			// Format is YYYYMM (e.g., 202511 for November 2025)
+			if ( strlen( $m ) === 6 ) {
+				$year = substr( $m, 0, 4 );
+				$month = substr( $m, 4, 2 );
+				$args['year'] = intval( $year );
+				$args['monthnum'] = intval( $month );
+			}
+		}
+
+		$query = new WP_Query( $args );
+
+		// Set headers for CSV download
+		$filename = 'tel-clicks-' . date( 'Y-m-d' ) . '.csv';
+		header( 'Content-Type: text/csv; charset=utf-8' );
+		header( 'Content-Disposition: attachment; filename=' . $filename );
+		header( 'Pragma: no-cache' );
+		header( 'Expires: 0' );
+
+		// Open output stream
+		$output = fopen( 'php://output', 'w' );
+
+		// Add UTF-8 BOM for proper Excel compatibility
+		fprintf( $output, chr(0xEF).chr(0xBB).chr(0xBF) );
+
+		// Write CSV headers
+		fputcsv( $output, array(
+			__( 'Phone Number', self::$text_domain ),
+			__( 'Click Date/Time', self::$text_domain ),
+			__( 'Traffic Source', self::$text_domain ),
+		) );
+
+		// Write data rows
+		if ( $query->have_posts() ) {
+			while ( $query->have_posts() ) {
+				$query->the_post();
+				$post_id = get_the_ID();
+				$post = get_post( $post_id );
+
+				$phone_number = get_the_title();
+				$formatted_date_time = get_post_datetime( $post )->format( self::DATETIME_FORMAT );
+				$traffic_source = get_post_meta( $post_id, self::COLUMN_TRAFFIC_SOURCE, true );
+
+				fputcsv( $output, array(
+					$phone_number,
+					$formatted_date_time,
+					$traffic_source ? $traffic_source : '',
+				) );
+			}
+		}
+
+		wp_reset_postdata();
+		fclose( $output );
+		exit;
 	}
 
 }
