@@ -1,7 +1,7 @@
 <?php
 /*
 Plugin Name: WeGo Traffic Source
-Description: Auto-fills traffic source fields (create a hidden field with the default value of wego-traffic-source) and logs all tel: link clicks
+Description: Auto-fills traffic source form fields (create a hidden field with the default value of wego-traffic-source) and logs all tel: link clicks
 Version: 2.0.1
 Requires at least: 6.5
 Author: WeGo Unlimited
@@ -10,22 +10,34 @@ Text Domain: wego-traffic-source
 Domain Path: /languages/
 */
 
+/**
+ * Load supporting classes
+ */
+require_once __DIR__ . '/class-wego-tel-click-post-type.php';
+
 class WeGo_Traffic_Source {
-	static $plugin_url;
-	static $plugin_dir;
-	static $plugin_version;
+	const REST_NAMESPACE = 'wego/v1';
+	const REST_TRACK_TEL_CLICK_ENDPOINT = '/track-tel-click';
+
+	public static $plugin_url;
+	public static $plugin_dir;
+	public static $plugin_basename;
+	public static $plugin_version;
+	public static $plugin_text_domain;
 
 	/**
 	 * Plugin bootstrap
 	 */
 	public static function init() {
-		$plugin_data = get_file_data( __FILE__, array( 'Version' => 'Version' ) );
+		$plugin_data = get_plugin_data( __FILE__ );
 
 		self::$plugin_url = trailingslashit( plugin_dir_url( __FILE__ ) );
 		self::$plugin_dir = trailingslashit( plugin_dir_path( __FILE__ ) );
+		self::$plugin_basename = trailingslashit( dirname( plugin_basename( __FILE__ ) ) );
 		self::$plugin_version = $plugin_data['Version'];
+		self::$plugin_text_domain = $plugin_data['TextDomain'];
 
-		load_plugin_textdomain( 'wego-traffic-source', false, dirname( plugin_basename( __FILE__ ) ) . '/languages/' );
+		load_plugin_textdomain( self::$plugin_text_domain, false, self::$plugin_basename . 'languages/' );
 
 		// Front end scripts
 		add_action( 'wp_enqueue_scripts', array( __CLASS__, 'enqueue_frontend_scripts' ) );
@@ -33,12 +45,9 @@ class WeGo_Traffic_Source {
 		// Register REST API endpoint
 		add_action( 'rest_api_init', array( __CLASS__, 'register_rest_routes' ) );
 
-		// Load post type class
-		require_once self::$plugin_dir . 'class-wego-tel-click-post-type.php';
-
 		// Initialize post type admin (only in admin context)
 		if ( is_admin() ) {
-			WeGo_Tel_Click_Post_Type::init();
+			WeGo_Tel_Click_Post_Type::init( self::$plugin_text_domain );
 		}
 	}
 
@@ -57,7 +66,7 @@ class WeGo_Traffic_Source {
 	 * Register REST API routes
 	 */
 	public static function register_rest_routes() {
-		register_rest_route( 'wego/v1', '/track-tel-click', array(
+		register_rest_route( self::REST_NAMESPACE, self::REST_TRACK_TEL_CLICK_ENDPOINT, array(
 			'methods' => 'POST',
 			'callback' => array( __CLASS__, 'handle_tel_click' ),
 			'permission_callback' => '__return_true', // Allow unauthenticated requests

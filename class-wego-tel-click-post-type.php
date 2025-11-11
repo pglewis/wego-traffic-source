@@ -20,9 +20,15 @@ class WeGo_Tel_Click_Post_Type {
 	const COLUMN_TRAFFIC_SOURCE = 'traffic_source';
 
 	/**
+	 * Text domain for translations
+	 */
+	private static $text_domain;
+
+	/**
 	 * Initialize the post type and admin functionality
 	 */
-	public static function init() {
+	public static function init( $text_domain ) {
+		self::$text_domain = $text_domain;
 		// Register custom post type
 		add_action( 'init', array( __CLASS__, 'register_post_type' ) );
 
@@ -44,8 +50,8 @@ class WeGo_Tel_Click_Post_Type {
 	public static function register_post_type() {
 		register_post_type( self::POST_TYPE_SLUG, array(
 			'labels' => array(
-				'name' => __( 'Tel Clicks', 'wego-traffic-source' ),
-				'singular_name' => __( 'Tel Click', 'wego-traffic-source' ),
+				'name' => __( 'Tel Clicks', self::$text_domain ),
+				'singular_name' => __( 'Tel Click', self::$text_domain ),
 			),
 			'public' => false,
 			'show_ui' => true,
@@ -53,7 +59,7 @@ class WeGo_Tel_Click_Post_Type {
 			'capability_type' => 'post',
 			'supports' => array( 'title' ),
 			'menu_icon' => 'dashicons-phone',
-			'menu_position' => 58,
+			'menu_position' => 58.8,
 		) );
 	}
 
@@ -63,9 +69,9 @@ class WeGo_Tel_Click_Post_Type {
 	public static function add_custom_columns( $columns ) {
 		$new_columns = array();
 		$new_columns['cb'] = $columns['cb'];
-		$new_columns['title'] = __( 'Phone Number', 'wego-traffic-source' );
-		$new_columns[ self::COLUMN_CLICK_DATE_TIME ] = __( 'Click Date/Time', 'wego-traffic-source' );
-		$new_columns[ self::COLUMN_TRAFFIC_SOURCE ] = __( 'Traffic Source', 'wego-traffic-source' );
+		$new_columns['title'] = __( 'Phone Number', self::$text_domain );
+		$new_columns[ self::COLUMN_CLICK_DATE_TIME ] = __( 'Click Date/Time', self::$text_domain );
+		$new_columns[ self::COLUMN_TRAFFIC_SOURCE ] = __( 'Traffic Source', self::$text_domain );
 		return $new_columns;
 	}
 
@@ -191,7 +197,7 @@ class WeGo_Tel_Click_Post_Type {
 	public static function add_traffic_source_metabox() {
 		add_meta_box(
 			'wego_traffic_source_metabox',
-			__( 'Traffic Source', 'wego-traffic-source' ),
+			__( 'Traffic Source', self::$text_domain ),
 			array( __CLASS__, 'render_traffic_source_metabox' ),
 			self::POST_TYPE_SLUG,
 			'normal',
@@ -207,7 +213,7 @@ class WeGo_Tel_Click_Post_Type {
 		wp_nonce_field( 'wego_traffic_source_nonce', 'wego_traffic_source_nonce' );
 		?>
 		<p>
-			<label for="wego_traffic_source"><?php esc_html_e( 'Traffic Source:', 'wego-traffic-source' ); ?></label>
+			<label for="wego_traffic_source"><?php esc_html_e( 'Traffic Source:', self::$text_domain ); ?></label>
 			<input type="text" id="wego_traffic_source" name="wego_traffic_source" value="<?php echo esc_attr( $traffic_source ); ?>" style="width: 100%;" readonly>
 		</p>
 		<?php
@@ -220,7 +226,11 @@ class WeGo_Tel_Click_Post_Type {
 	 * The traffic_source field is readonly and should only be set via the tracking API.
 	 */
 	public static function validate_traffic_source_metabox( $post_id ) {
-		if ( ! isset( $_POST['wego_traffic_source_nonce'] ) || ! wp_verify_nonce( $_POST['wego_traffic_source_nonce'], 'wego_traffic_source_nonce' ) ) {
+		if ( ! isset( $_POST['wego_traffic_source_nonce'] ) ) {
+			return;
+		}
+
+		if ( ! wp_verify_nonce( $_POST['wego_traffic_source_nonce'], 'wego_traffic_source_nonce' ) ) {
 			return;
 		}
 
