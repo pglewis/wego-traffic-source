@@ -27,20 +27,23 @@ class WeGo_Traffic_Source {
 
 		load_plugin_textdomain( 'wego-traffic-source', false, dirname( plugin_basename( __FILE__ ) ) . '/languages/' );
 
-		// Scripts
+		// Front end scripts
 		add_action( 'wp_enqueue_scripts', array( 'WeGo_Traffic_Source', 'enqueue_scripts' ) );
-
-		// Register custom post type
-		add_action( 'init', array( 'WeGo_Traffic_Source', 'register_post_type' ) );
 
 		// Register REST API endpoint
 		add_action( 'rest_api_init', array( 'WeGo_Traffic_Source', 'register_rest_routes' ) );
+
+		// Register custom post type
+		add_action( 'init', array( 'WeGo_Traffic_Source', 'register_post_type' ) );
 
 		// Add custom columns to admin
 		add_filter( 'manage_wego_tel_click_posts_columns', array( 'WeGo_Traffic_Source', 'add_custom_columns' ) );
 		add_action( 'manage_wego_tel_click_posts_custom_column', array( 'WeGo_Traffic_Source', 'render_custom_columns' ), 10, 2 );
 		add_filter( 'manage_edit-wego_tel_click_sortable_columns', array( 'WeGo_Traffic_Source', 'make_columns_sortable' ) );
 		add_action( 'pre_get_posts', array( 'WeGo_Traffic_Source', 'handle_column_sorting' ) );
+
+		add_action( 'restrict_manage_posts', array( 'WeGo_Traffic_Source', 'add_admin_filter_dropdown' ) );
+		add_action( 'pre_get_posts', array( 'WeGo_Traffic_Source', 'modify_admin_query' ) );
 
 		// Add metabox to edit page
 		add_action( 'add_meta_boxes_wego_tel_click', array( 'WeGo_Traffic_Source', 'add_traffic_source_metabox' ) );
@@ -213,6 +216,89 @@ class WeGo_Traffic_Source {
 		// Don't allow direct editing of traffic_source via the metabox (readonly field)
 		// It should only be set when the tel click is tracked via the API
 	}
+
+	/**
+	 * Add Traffic Source filter dropdown to the admin list
+	 */
+	public static function add_admin_filter_dropdown($post_type) {
+		if ($post_type !== 'wego_tel_click') {
+			return;
+		}
+
+		global $wpdb;
+		$sources = $wpdb->get_col("
+			SELECT DISTINCT meta_value
+			FROM {$wpdb->postmeta}
+			WHERE meta_key = 'traffic_source' AND meta_value <> ''
+			ORDER BY meta_value ASC
+		");
+
+		$current = isset($_GET['traffic_source_filter'])
+			? sanitize_text_field($_GET['traffic_source_filter'])
+			: '';
+
+		echo '<select name="traffic_source_filter" style="max-width:200px;">';
+		echo '<option value="">All Traffic Sources</option>';
+
+		foreach ($sources as $source) {
+			printf(
+				'<option value="%s"%s>%s</option>',
+				esc_attr($source),
+				selected($current, $source, false),
+				esc_html(ucfirst($source))
+			);
+		}
+
+		echo '</select>';
+	}
+
+	/**
+	 * Modify admin query for Tel Clicks:
+	 * - Default sort by newest
+	 * - Filter by Traffic Source
+	 */
+	public static function modify_admin_query($query) {
+		global $pagenow;
+
+		if (!is_admin() || $pagenow !== 'edit.php') {
+			return;
+		}
+
+		$post_type = isset($_GET['post_type']) ? $_GET['post_type'] : '';
+
+		if ($post_type !== 'wego_tel_click') {
+			return;
+		}
+
+		// Default sort by date DESC if not manually set
+		if (!isset($_GET['orderby']) && !isset($_GET['order'])) {
+			// Redirect to same page with orderby parameters to make UI reflect sort state
+			$redirect_url = add_query_arg(array(
+				'post_type' => 'wego_tel_click',
+				'orderby' => 'post_date',
+				'order' => 'desc',
+			), admin_url('edit.php'));
+
+			// Preserve traffic_source_filter if present
+			if (!empty($_GET['traffic_source_filter'])) {
+				$redirect_url = add_query_arg('traffic_source_filter', sanitize_text_field($_GET['traffic_source_filter']), $redirect_url);
+			}
+
+			wp_redirect($redirect_url);
+			exit;
+		}
+
+		// Filter by traffic source if selected
+		if (!empty($_GET['traffic_source_filter'])) {
+			$query->set('meta_query', [
+				[
+					'key'   => 'traffic_source',
+					'value' => sanitize_text_field($_GET['traffic_source_filter']),
+				],
+			]);
+		}
+	}
+
 }
 
 /**
