@@ -271,8 +271,7 @@ class WeGo_Plugin_Updater {
 		$response_code = wp_remote_retrieve_response_code( $response );
 		if ( 200 !== $response_code ) {
 			$this->github_release = false;
-			// Cache failures briefly to avoid hammering the API
-			set_transient( $this->cache_key, false, 300 );
+			// Don't cache failures - let them retry on next check
 			return false;
 		}
 
@@ -281,6 +280,7 @@ class WeGo_Plugin_Updater {
 
 		if ( ! $release || ! isset( $release->tag_name ) ) {
 			$this->github_release = false;
+			// Don't cache parse failures either
 			return false;
 		}
 
