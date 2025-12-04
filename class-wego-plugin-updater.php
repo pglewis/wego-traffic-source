@@ -182,6 +182,7 @@ class WeGo_Plugin_Updater {
 			'sections'          => array(
 				'description'  => $plugin_data['Description'],
 				'changelog'    => $this->format_release_notes( $release->body ),
+				'system_info'  => $this->get_system_info_section(),
 			),
 			'download_link'     => $release->zipball_url,
 			'banners'           => array(),
@@ -339,6 +340,32 @@ class WeGo_Plugin_Updater {
 
 		// Clean up empty paragraphs
 		$html = preg_replace( '/<p>\s*<\/p>/', '', $html );
+
+		return $html;
+	}
+
+	/**
+	 * Get system information section for plugin details popup
+	 *
+	 * @return string HTML content for system info section.
+	 */
+	private function get_system_info_section() {
+		$cache_data = get_transient( $this->cache_key );
+		$cache_status = $cache_data ? 'Cached' : 'Not cached';
+		$repo_url = sprintf(
+			'https://github.com/%s/%s',
+			$this->github_username,
+			$this->github_repo
+		);
+
+		$html = '<h3>System Information</h3>';
+		$html .= '<ul>';
+		$html .= '<li><strong>GitHub Repository:</strong> <a href="' . esc_url( $repo_url ) . '" target="_blank">' . esc_html( $this->github_username . '/' . $this->github_repo ) . '</a></li>';
+		$html .= '<li><strong>Current Version:</strong> ' . esc_html( $this->current_version ) . '</li>';
+		$html .= '<li><strong>Update Cache:</strong> ' . esc_html( $cache_status ) . '</li>';
+		$html .= '<li><strong>Cache Duration:</strong> ' . esc_html( human_time_diff( 0, $this->cache_expiration ) ) . '</li>';
+		$html .= '</ul>';
+		$html .= '<p><em>To force a fresh update check, go to Dashboard &rarr; Updates and click "Check Again".</em></p>';
 
 		return $html;
 	}
