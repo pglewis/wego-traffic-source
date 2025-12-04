@@ -104,8 +104,55 @@ class WeGo_Plugin_Updater {
 		// Modify update source to use GitHub zip
 		add_filter( 'upgrader_source_selection', array( $this, 'fix_directory_name' ), 10, 4 );
 
-		// Clear cache when checking for updates manually
-		add_action( 'admin_init', array( $this, 'maybe_clear_cache' ) );
+		// Handle manual update check
+		add_action( 'admin_init', array( $this, 'handle_manual_update_check' ) );
+
+		// Add "Check for Updates" link to plugin actions
+		add_filter( 'plugin_action_links_' . $this->plugin_slug, array( $this, 'add_check_updates_link' ) );
+	}
+
+	/**
+	 * Add "Check for Updates" link to plugin action links
+	 *
+	 * @param array $links Existing plugin action links.
+	 * @return array Modified links array.
+	 */
+	public function add_check_updates_link( $links ) {
+		$check_url = wp_nonce_url(
+			admin_url( 'plugins.php?wego_check_updates=' . rawurlencode( $this->plugin_slug ) ),
+			'wego_check_updates_' . $this->plugin_slug
+		);
+		$links['check_updates'] = '<a href="' . esc_url( $check_url ) . '">' . __( 'Check for Updates', 'wego-traffic-source' ) . '</a>';
+		return $links;
+	}
+
+	/**
+	 * Handle manual update check request
+	 */
+	public function handle_manual_update_check() {
+		if ( ! isset( $_GET['wego_check_updates'] ) ) {
+			return;
+		}
+
+		if ( $_GET['wego_check_updates'] !== $this->plugin_slug ) {
+			return;
+		}
+
+		if ( ! current_user_can( 'update_plugins' ) ) {
+			return;
+		}
+
+		check_admin_referer( 'wego_check_updates_' . $this->plugin_slug );
+
+		// Clear our GitHub release cache
+		delete_transient( $this->cache_key );
+
+		// Clear WordPress plugin update transient to force fresh check
+		delete_site_transient( 'update_plugins' );
+
+		// Redirect back to plugins page
+		wp_safe_redirect( admin_url( 'plugins.php?wego_updated_check=1' ) );
+		exit;
 	}
 
 	/**
@@ -365,23 +412,9 @@ class WeGo_Plugin_Updater {
 		$html .= '<li><strong>Update Cache:</strong> ' . esc_html( $cache_status ) . '</li>';
 		$html .= '<li><strong>Cache Duration:</strong> ' . esc_html( human_time_diff( 0, $this->cache_expiration ) ) . '</li>';
 		$html .= '</ul>';
-		$html .= '<p><em>To force a fresh update check, go to Dashboard &rarr; Updates and click "Check Again".</em></p>';
+		$html .= '<p><em>Use the "Check for Updates" link on the Plugins page to force a fresh update check.</em></p>';
 
 		return $html;
-	}
-
-	/**
-	 * Clear the update cache when force-checking for updates
-	 */
-	public function maybe_clear_cache() {
-		if ( ! current_user_can( 'update_plugins' ) ) {
-			return;
-		}
-
-		// WordPress adds force-check=1 when clicking "Check Again"
-		if ( isset( $_GET['force-check'] ) && '1' === $_GET['force-check'] ) {
-			delete_transient( $this->cache_key );
-		}
 	}
 
 }
