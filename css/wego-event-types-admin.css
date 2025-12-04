@@ -1,0 +1,35 @@
+/**
+ * WeGo Event Types Admin - Settings page styles
+ */
+
+#wego-event-types-table input[type="text"],
+#wego-event-types-table textarea {
+	width: 100%;
+}
+
+#wego-event-types-table textarea {
+	min-height: 60px;
+	font-family: monospace;
+	font-size: 12px;
+}
+
+#wego-event-types-table .wego-delete-row {
+	color: #b32d2e;
+	cursor: pointer;
+}
+
+#wego-event-types-table .wego-delete-row:hover {
+	color: #a00;
+}
+
+/* WordPress standard form validation styles */
+#wego-event-types-table .form-invalid {
+	border-color: #dc3232 !important;
+	box-shadow: 0 0 2px rgba(220, 50, 50, 0.8);
+	background-color: #fef7f7;
+}
+
+#wego-event-types-table .form-required:after {
+	content: " *";
+	color: #dc3232;
+}

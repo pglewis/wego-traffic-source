@@ -1,12 +1,72 @@
 const STORAGE_KEY_UTM = 'wego_utm';
 const STORAGE_KEY_REFERRER = 'wego_referrer';
 const FORM_FIELD_TARGET_VALUE = 'wego-traffic-source';
-const API_ENDPOINT_TEL_CLICK = '/wp-json/wego/v1/track-tel-click';
 
 // Main execution
-setupEventListeners();
+setupDynamicEventTracking();
 storeTrafficParams();
 fillFormFields();
+
+/**
+ * Set up click handlers for dynamic event types from inline JSON config
+ */
+function setupDynamicEventTracking() {
+	const configElement = document.querySelector('script.wego-tracking-config');
+	if (!configElement) {
+		return;
+	}
+
+	let config;
+	try {
+		config = JSON.parse(configElement.textContent);
+	} catch (e) {
+		console.error('WeGo Tracking: Failed to parse config', e);
+		return;
+	}
+
+	if (!config.eventTypes || !Array.isArray(config.eventTypes)) {
+		return;
+	}
+
+	// Set up click handler for each event type
+	for (const eventType of config.eventTypes) {
+		if (!eventType.selector || !eventType.slug) {
+			continue;
+		}
+
+		document.addEventListener('click', (e) => {
+			const target = e.target.closest(eventType.selector);
+			if (!target || !target.hasAttribute('href')) {
+				return;
+			}
+
+			const primaryValue = target.getAttribute('href');
+			const trafficSource = determineTrafficSource();
+			const deviceType = getDeviceType();
+			const pagePath = window.location.pathname + window.location.search;
+			const browserFamily = getBrowserFamily();
+			const osFamily = getOsFamily();
+
+			// Use sendBeacon for reliable delivery even during page unload
+			// https://developer.mozilla.org/en-US/docs/Web/API/Navigator/sendBeacon
+			navigator.sendBeacon(
+				config.endpoint,
+				new Blob(
+					[JSON.stringify({
+						event_type: eventType.slug,
+						primary_value: primaryValue,
+						traffic_source: trafficSource,
+						device_type: deviceType,
+						page_url: pagePath,
+						browser_family: browserFamily,
+						os_family: osFamily
+					})],
+					{ type: 'application/json' }
+				)
+			);
+		});
+	}
+}
 
 function storeTrafficParams() {
 	// Early exit if we already have first-page-load data, don't overwrite
@@ -105,29 +165,106 @@ function determineTrafficSource() {
 	return 'Direct';
 }
 
-function setupEventListeners() {
-	// Track tel link clicks
-	document.addEventListener('click', handleTelLinkClick);
+/**
+ * Detect device type based on user agent and viewport width
+ * Uses standard industry heuristics for device detection
+ */
+function getDeviceType() {
+	const ua = navigator.userAgent.toLowerCase();
+	const width = window.innerWidth || document.documentElement.clientWidth;
+
+	// Check for tablet indicators
+	if (ua.includes('ipad') ||
+		(ua.includes('android') && !ua.includes('mobile')) ||
+		(ua.includes('tablet'))) {
+		return 'Tablet';
+	}
+
+	// Check for mobile indicators
+	if (ua.includes('mobile') ||
+		ua.includes('iphone') ||
+		ua.includes('ipod') ||
+		width < 768) {
+		return 'Mobile';
+	}
+
+	return 'Desktop';
 }
 
-function handleTelLinkClick(e) {
-	const target = e.target.closest('a[href^="tel:"]');
-	if (target) {
-		const phoneNumber = target.getAttribute('href').replace('tel:', '');
-		const trafficSource = determineTrafficSource();
+/**
+ * Detect browser family from user agent
+ * Uses standard user agent patterns
+ */
+function getBrowserFamily() {
+	const ua = navigator.userAgent;
 
-		// Send to WordPress REST API
-		fetch(API_ENDPOINT_TEL_CLICK, {
-			method: 'POST',
-			headers: {
-				'Content-Type': 'application/json',
-			},
-			body: JSON.stringify({
-				phone_number: phoneNumber,
-				traffic_source: trafficSource
-			})
-		}).catch(err => {
-			console.error('Failed to track tel click:', err);
-		});
+	// Edge (Chromium-based) must be checked before Chrome
+	if (ua.includes('Edg/') || ua.includes('Edge/')) {
+		return 'Edge';
 	}
+
+	// Chrome must be checked before Safari (Chrome UA contains Safari)
+	if (ua.includes('Chrome/')) {
+		return 'Chrome';
+	}
+
+	if (ua.includes('Safari/')) {
+		return 'Safari';
+	}
+
+	if (ua.includes('Firefox/')) {
+		return 'Firefox';
+	}
+
+	// Opera
+	if (ua.includes('OPR/') || ua.includes('Opera/')) {
+		return 'Opera';
+	}
+
+	// Internet Explorer
+	if (ua.includes('MSIE') || ua.includes('Trident/')) {
+		return 'Internet Explorer';
+	}
+
+	return 'Other';
+}
+
+/**
+ * Detect operating system family from user agent
+ * Uses standard user agent patterns
+ */
+function getOsFamily() {
+	const ua = navigator.userAgent;
+
+	// iOS devices
+	if (ua.includes('iPhone') || ua.includes('iPad') || ua.includes('iPod')) {
+		return 'iOS';
+	}
+
+	// Android
+	if (ua.includes('Android')) {
+		return 'Android';
+	}
+
+	// Windows
+	if (ua.includes('Windows')) {
+		return 'Windows';
+	}
+
+	// macOS
+	if (ua.includes('Macintosh') || ua.includes('Mac OS X')) {
+		return 'macOS';
+	}
+
+	// Linux
+	if (ua.includes('Linux')) {
+		return 'Linux';
+	}
+
+	// Chrome OS
+	if (ua.includes('CrOS')) {
+		return 'Chrome OS';
+	}
+
+	return 'Other';
 }
