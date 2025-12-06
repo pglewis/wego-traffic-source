@@ -2,7 +2,7 @@
 /*
 Plugin Name: WeGo Traffic Source
 Description: Auto-fills traffic source form fields and tracks configurable click events (tel links, booking links, etc.)
-Version: 2.1.5
+Version: 2.1.6
 Requires at least: 6.5
 Author: WeGo Unlimited
 License: GPLv2 or later
@@ -11,14 +11,8 @@ Domain Path: /languages/
 */
 
 // GitHub updater settings: define constants for username and repo
-// These follow the project's naming/convention and can be overridden
-if ( ! defined( 'WEGO_GITHUB_USERNAME' ) ) {
-	define( 'WEGO_GITHUB_USERNAME', 'pglewis' );
-}
-
-if ( ! defined( 'WEGO_GITHUB_REPO' ) ) {
-	define( 'WEGO_GITHUB_REPO', 'wego-traffic-source' );
-}
+define( 'WEGO_GITHUB_USERNAME', 'pglewis' );
+define( 'WEGO_GITHUB_REPO', 'wego-traffic-source' );
 
 /**
  * Load supporting classes

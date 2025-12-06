@@ -1,0 +1,37 @@
+name: Generate Installable Plugin and Upload as Release Asset
+
+# Trigger the workflow when a release is published
+on:
+  release:
+    types: [published]
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    permissions:
+      # Needed to check out code and upload the release asset
+      contents: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Create custom plugin ZIP
+        env:
+              PLUGIN_SLUG: ${{ github.event.repository.name }}
+        run: |
+          ZIP_FILE="$PLUGIN_SLUG.zip"
+          # Use git archive to create a clean zip with the correct folder prefix
+          git archive --format=zip --output="$ZIP_FILE" HEAD --prefix=$PLUGIN_SLUG/
+          echo "Created $ZIP_FILE"
+          # Make the zip file available to the next step
+          echo "ZIP_FILE_NAME=$ZIP_FILE" >> $GITHUB_ENV
+
+      - name: Upload Release Asset
+        # This action uploads the file to the current release that triggered the workflow
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            ${{ env.ZIP_FILE_NAME }} # Uses the file name generated in the previous step
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # GitHub provides this token automatically

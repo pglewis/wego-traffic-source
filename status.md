@@ -1,21 +1,5 @@
 # WeGo Traffic Source Development Status
 
-## Codebase Rules
-
-- Do not make code changes until we both agree on that action, otherwise we are discussing and planning only
-- No heredoc syntax
-- No JavaScript forEach, use for..of instead
-- JavaScript should be in external files and loaded as ES modules
-- Tab indent, WordPress coding style rules
-
-## Completed Features
-
-✅ **GitHub Auto-Updates** - `class-wego-plugin-updater.php`
-
-- Automatic update checking via GitHub releases
-- Plugin details popup with release notes and system info
-- See `github-auto-updates.md` for release workflow
-
 ## Future Best Practices Fixes
 
 - **CSV filename header:** export_csv() sets Content-Disposition: attachment; filename=... without quoting/encoding. If filename contains spaces or non-ASCII, some clients may mis-handle it.
@@ -36,4 +20,3 @@ Recommendation: wrap filename in double quotes or use RFC5987 encoding (filename
   - "Delete All Tracking Data" button on Event Types settings page
   - Deletes posts for known CPTs only (not wildcard `wego_*`)
   - Deletes only plugin-specific options by name
-
