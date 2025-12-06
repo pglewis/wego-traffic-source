@@ -18,20 +18,24 @@ jobs:
 
       - name: Create custom plugin ZIP
         env:
-              PLUGIN_SLUG: ${{ github.event.repository.name }}
+          PLUGIN_SLUG: ${{ github.event.repository.name }}
         run: |
           ZIP_FILE="$PLUGIN_SLUG.zip"
           # Use git archive to create a clean zip with the correct folder prefix
           git archive --format=zip --output="$ZIP_FILE" HEAD --prefix=$PLUGIN_SLUG/
-          echo "Created $ZIP_FILE"
-          # Make the zip file available to the next step
-          echo "ZIP_FILE_NAME=$ZIP_FILE" >> $GITHUB_ENV
+
+          # Verify the file was created
+          if [ -f "$ZIP_FILE" ]; then
+            echo "✓ Created $ZIP_FILE"
+            ls -lh "$ZIP_FILE"
+          else
+            echo "✗ Failed to create $ZIP_FILE"
+            exit 1
+          fi
 
       - name: Upload Release Asset
-        # This action uploads the file to the current release that triggered the workflow
         uses: softprops/action-gh-release@v2
         with:
-          files: |
-            ${{ env.ZIP_FILE_NAME }} # Uses the file name generated in the previous step
+          files: ./${{ github.event.repository.name }}.zip
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # GitHub provides this token automatically
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

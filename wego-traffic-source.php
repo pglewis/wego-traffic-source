@@ -2,7 +2,7 @@
 /*
 Plugin Name: WeGo Traffic Source
 Description: Auto-fills traffic source form fields and tracks configurable click events (tel links, booking links, etc.)
-Version: 2.1.6
+Version: 2.1.7
 Requires at least: 6.5
 Author: WeGo Unlimited
 License: GPLv2 or later
