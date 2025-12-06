@@ -18,21 +18,22 @@ The plugin includes a built-in auto-update system that checks for updates on Git
     - `git reset --soft master`
     - Stage all changes and commit
 
-5. **Merge changes to master**
+5. **Checkout master and merge release branch**
+    - `git checkout master`
     - Merge the release branch with master
 
-6. **Checkout master and delete the release branch**
-    - `git checkout master`
-    - `git branch -d release/x.y.z`
+6. **Delete the release branch**
+    - `git branch -D release/x.y.z`
 
-7. **Push upstream**
+7. **Push master upstream**
+    - git push origin master
 
-8. **Create a tag for the new release version**
-   - Create an annotated tag: `git tag -a x.y.z -m "Release version x.y.z"`
-   - Note: Use the exact MAJOR.MINOR.PATCH from the plugin header, without a `v` prefix
+8. **Delete the upstream release branch (force required due to divergence)**
+    - git push origin --delete release/x.y.z
 
-9. **Push tags**
-   - Push all tags: `git push --tags`
+9. **Create and push tag**
+    - `git tag -a x.y.z -m "x.y.z: short message"`
+    - `git push origin x.y.z`
 
 10. **Create a GitHub release based on the new tag**
     - Go to the repository on GitHub
@@ -54,7 +55,7 @@ The plugin includes a built-in auto-update system that checks for updates on Git
 
 ### Common Mistakes to Avoid
 
-- Forgetting to push tags (`git push` doesn't push tags by default - use `git push --tags`)
+- Forgetting to push the tag (`git push` doesn't push tags by default - use `git push origin x.y.z`)
 - Mismatched version between tag and plugin header
 - Adding a `v` prefix to tags (stick with plain semver)
 - Not bumping the version before tagging

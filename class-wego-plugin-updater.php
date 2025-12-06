@@ -296,23 +296,30 @@ class WeGo_Plugin_Updater {
 		$plugin_data = get_plugin_data( $this->plugin_file );
 		$current_version = ! empty( $plugin_data['Version'] ) ? $plugin_data['Version'] : $this->current_version;
 
+		// Build plugin info object for WordPress
+		$plugin_info = (object) array(
+			'slug'         => dirname( $this->plugin_slug ),
+			'plugin'       => $this->plugin_slug,
+			'new_version'  => $github_version,
+			'url'          => $release->html_url,
+			'package'      => $release->zipball_url,
+			'icons'        => array(),
+			'banners'      => array(),
+			'tested'       => '',
+			'requires'     => '',
+			'requires_php' => '',
+		);
+
 		if ( version_compare( $github_version, $current_version, '>' ) ) {
-			$transient->response[ $this->plugin_slug ] = (object) array(
-				'slug'        => dirname( $this->plugin_slug ),
-				'plugin'      => $this->plugin_slug,
-				'new_version' => $github_version,
-				'url'         => $release->html_url,
-				'package'     => $release->zipball_url,
-				'icons'       => array(),
-				'banners'     => array(),
-				'tested'      => '',
-				'requires'    => '',
-			);
+			// Update available
+			$transient->response[ $this->plugin_slug ] = $plugin_info;
+		} else {
+			// No update available - add to no_update to enable auto-update UI
+			$transient->no_update[ $this->plugin_slug ] = $plugin_info;
 		}
 
 		return $transient;
 	}
-
 	/**
 	 * Display plugin information in the details popup
 	 *
