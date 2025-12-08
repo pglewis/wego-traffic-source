@@ -1,6 +1,41 @@
+/**
+ * Configuration object for WeGo tracking system.
+ * Injected into page as <script type="application/json" class="wego-tracking-config">
+ *
+ * @typedef {Object} WeGoTrackingConfig
+ * @property {string} endpoint - REST API URL where event data is sent via sendBeacon
+ * @property {WeGoEventType[]} eventTypes - Array of event type definitions to track
+ *
+ * @typedef {Object} WeGoEventType
+ * @property {string} slug - Event type identifier, sent to API as event_type
+ * @property {string} selector - CSS selector string passed to element.closest() to match clicked elements
+ *
+ * @example
+ * {
+ *   "endpoint": "https://example.com/wp-json/wego/v1/track-event",
+ *   "eventTypes": [
+ *     {
+ *       "slug": "tel_clicks",
+ *       "selector": "a[href^='tel:']"
+ *     },
+ *     {
+ *       "slug": "schedule_clicks",
+ *       "selector": "a.schedule"
+ *     }
+ *   ]
+ * }
+ *
+ * @remarks
+ * - Only elements with an href attribute will trigger events
+ * - The href value becomes primary_value in the beacon payload
+ * - Click events bubble, so selector matches against clicked element and ancestors
+ * - Config is generated server-side via output_tracking_config() in PHP
+ */
+
+const FORM_FIELD_TARGET_VALUE = 'wego-traffic-source';
+const SELECTOR_CONFIG_DATA_SCRIPT = 'script.wego-tracking-config';
 const STORAGE_KEY_UTM = 'wego_utm';
 const STORAGE_KEY_REFERRER = 'wego_referrer';
-const FORM_FIELD_TARGET_VALUE = 'wego-traffic-source';
 
 // Main execution
 setupDynamicEventTracking();
@@ -11,25 +46,27 @@ fillFormFields();
  * Set up click handlers for dynamic event types from inline JSON config
  */
 function setupDynamicEventTracking() {
-	const configElement = document.querySelector('script.wego-tracking-config');
+	const configElement = document.querySelector(SELECTOR_CONFIG_DATA_SCRIPT);
 	if (!configElement) {
 		return;
 	}
 
-	let config;
+	let raw_config;
 	try {
-		config = JSON.parse(configElement.textContent);
+		raw_config = JSON.parse(configElement.textContent);
 	} catch (e) {
 		console.error('WeGo Tracking: Failed to parse config', e);
 		return;
 	}
-
-	if (!config.eventTypes || !Array.isArray(config.eventTypes)) {
+	if (!raw_config.eventTypes || !Array.isArray(raw_config.eventTypes)) {
 		return;
 	}
 
+	/** @type {WeGoTrackingConfig} Validated config data */
+	const config = raw_config;
+
 	// Set up click handler for each event type
-	for (const eventType of config.eventTypes) {
+	for ( const eventType of config.eventTypes) {
 		if (!eventType.selector || !eventType.slug) {
 			continue;
 		}
@@ -101,12 +138,14 @@ function storeTrafficParams() {
 				referrer = document.referrer;
 			}
 		} catch {
-			// If URL parsing fails, leave referrer as empty string
+			// If URL parsing fails, preserve the raw referrer so malformed
+			// values can be inspected later
+			referrer = document.referrer;
 		}
 	}
 
-	// Always save referrer, even if empty
-	sessionStorage.setItem(STORAGE_KEY_REFERRER, referrer);
+	// Always save referrer, even if empty. Trim to avoid whitespace-only values downstream.
+	sessionStorage.setItem(STORAGE_KEY_REFERRER, referrer.trim());
 }
 
 // Set the value of all matching form fields
@@ -122,7 +161,7 @@ function fillFormFields() {
 	}
 }
 
-// Business logic for the string to be used as the hidden form field's value
+// Determine what to show for referrer
 function determineTrafficSource() {
 	const storedUtm = sessionStorage.getItem(STORAGE_KEY_UTM);
 	const storedRef = sessionStorage.getItem(STORAGE_KEY_REFERRER);
@@ -143,21 +182,34 @@ function determineTrafficSource() {
 		try {
 			refUrl = new URL(storedRef);
 		} catch {
-			return 'Direct';
+			// Malformed referrer: return a short, safe preview
+			const preview = storedRef.length > 100 ? storedRef.slice(0, 100) + '…' : storedRef;
+			return `Malformed Referral: ${preview}`;
+		}
+		const hostname = refUrl.hostname.toLowerCase();
+
+		// Known email and search engine providers
+		const knownReferrers = [
+			{ label: 'Email: Gmail', domains: ['mail.google.com', 'inbox.google.com', 'com.google.android.gm'] },
+			{ label: 'Email: Outlook', domains: ['mail.live.com', 'outlook.live.com', 'com.microsoft.office.outlook'] },
+			{ label: 'Email: Yahoo Mail', domains: ['mail.yahoo.com', 'mail.yahoo.co.uk', 'com.yahoo.mobile.client.android.mail'] },
+			{ label: 'Email: AOL', domains: ['mail.aol.com', 'com.aol.mobile.aolapp'] },
+			{ label: 'Email: Proton', domains: ['mail.proton.me'] },
+			{ label: 'Organic Search: Google', domains: ['www.google.com', 'google.com', 'google.co.uk', 'google.ca'] },
+			{ label: 'Organic Search: Bing', domains: ['bing.com', 'www.bing.com', 'm.bing.com'] },
+			{ label: 'Organic Search: Yahoo', domains: ['search.yahoo.com', 'yahoo.com'] },
+			{ label: 'Organic Search: DuckDuckGo', domains: ['duckduckgo.com'] },
+			{ label: 'Organic Search: Brave', domains: ['search.brave.com'] }
+		];
+
+		for ( const ref of knownReferrers ) {
+			// Exact matches only, check the Snowplow database for a curated list of domain names
+			if ( ref.domains.some( d => hostname === d ) ) {
+				return ref.label;
+			}
 		}
 
-		const searchEngines = {
-			'google': 'Google',
-			'bing': 'Bing',
-			'yahoo': 'Yahoo',
-			'duckduckgo': 'DuckDuckGo'
-		};
-		const engine = Object.keys(searchEngines).find(e => refUrl.hostname.toLowerCase().includes(e));
-		if (engine) {
-			return `Organic Search: ${searchEngines[engine]}`;
-		}
-
-		// External referral
+		// External referral (no match found)
 		return `Referral from ${refUrl.hostname}`;
 	}
 

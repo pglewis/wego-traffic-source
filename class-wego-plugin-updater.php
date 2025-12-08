@@ -24,6 +24,8 @@ class WeGo_Plugin_Updater {
 
 	/** Github URL templates */
 	const GITHUB_REPO_URL = 'https://github.com/%s/%s';
+	const GITHUB_LATEST_RELEASE_URL = 'https://github.com/%s/%s/releases/latest';
+	const GITHUB_ISSUES_URL = 'https://github.com/%s/%s/issues';
 	const GITHUB_API_URL = 'https://api.github.com/repos/%s/%s/releases/latest';
 
 	/** Error codes */
@@ -204,21 +206,21 @@ class WeGo_Plugin_Updater {
 		$title = $error_title_map[ $error_code ] ?? __( 'Plugin Updater Error', 'wego-traffic-source' );
 
 		?>
-		<div class="notice notice-error is-dismissible wego-updater-notice" data-plugin-slug="<?php echo esc_attr( $this->plugin_slug ); ?>">
+		<div class="notice notice-error is-dismissible wego-updater-notice" data-plugin-slug="<?= esc_attr( $this->plugin_slug ); ?>">
 			<p>
-				<strong><?php echo esc_html( __( 'WeGo Traffic Source Updater:', 'wego-traffic-source' ) ); ?></strong>
+				<strong><?= esc_html( __( 'WeGo Traffic Source Updater:', 'wego-traffic-source' ) ); ?></strong>
 			</p>
 			<p>
-				<strong><?php echo esc_html( $title ); ?></strong><br>
-				<?php echo esc_html( $message ); ?>
+				<strong><?= esc_html( $title ); ?></strong><br>
+				<?= esc_html( $message ); ?>
 			</p>
 			<?php if ( ! empty( $context ) ) : ?>
 				<p>
-					<small><?php echo esc_html( __( 'Details:', 'wego-traffic-source' ) ); ?> <?php echo esc_html( wp_json_encode( $context ) ); ?></small>
+					<small><?= esc_html( __( 'Details:', 'wego-traffic-source' ) ); ?> <?= esc_html( wp_json_encode( $context ) ); ?></small>
 				</p>
 			<?php endif; ?>
 			<p>
-				<small><?php echo esc_html( sprintf( __( 'Error logged at %s. Check your server error_log for complete details.', 'wego-traffic-source' ), $timestamp ) ); ?></small>
+				<small><?= esc_html( sprintf( __( 'Error logged at %s. Check your server error_log for complete details.', 'wego-traffic-source' ), $timestamp ) ); ?></small>
 			</p>
 		</div>
 		<?php
@@ -314,12 +316,15 @@ class WeGo_Plugin_Updater {
 			// Update available
 			$transient->response[ $this->plugin_slug ] = $plugin_info;
 		} else {
-			// No update available - add to no_update to enable auto-update UI
+			// No update available - remove any stale entry from response and add to no_update
+			unset( $transient->response[ $this->plugin_slug ] );
+			$plugin_info->new_version = $current_version;
 			$transient->no_update[ $this->plugin_slug ] = $plugin_info;
 		}
 
 		return $transient;
 	}
+
 	/**
 	 * Display plugin information in the details popup
 	 *
@@ -358,7 +363,7 @@ class WeGo_Plugin_Updater {
 			'sections'          => array(
 				'description'  => $plugin_data['Description'],
 				'changelog'    => $this->format_release_notes( $release->body ),
-				'system_info'  => $this->get_system_info_section(),
+				'repo_info'  => $this->get_repo_info_section(),
 			),
 			'download_link'     => $release->zipball_url,
 			'banners'           => array(),
@@ -597,24 +602,31 @@ class WeGo_Plugin_Updater {
 	 *
 	 * @return string HTML content for system info section.
 	 */
-	private function get_system_info_section() {
-		$cache_data = get_transient( $this->transient_key_release_data );
-		$cache_status = $cache_data ? 'Cached' : 'Not cached';
-		$repo_url = sprintf(
-			self::GITHUB_REPO_URL,
-			$this->github_username,
-			$this->github_repo
-		);
+	private function get_repo_info_section() {
+		// prepare escaped pieces for clean template output (assign escaped directly)
+		$escaped_repo_url           = esc_url( sprintf( self::GITHUB_REPO_URL, $this->github_username, $this->github_repo ) );
+		$repo_label                 = esc_html( $this->github_username . '/' . $this->github_repo );
+		$escaped_latest_release_url = esc_url( sprintf( self::GITHUB_LATEST_RELEASE_URL, $this->github_username, $this->github_repo ) );
+		$escaped_issues_url         = esc_url( sprintf( self::GITHUB_ISSUES_URL, $this->github_username, $this->github_repo ) );
 
-		$html = '<h3>System Information</h3>';
-		$html .= '<ul>';
-		$html .= '<li><strong>GitHub Repository:</strong> <a href="' . esc_url( $repo_url ) . '" target="_blank">' . esc_html( $this->github_username . '/' . $this->github_repo ) . '</a></li>';
-		$html .= '<li><strong>Current Version:</strong> ' . esc_html( $this->current_version ) . '</li>';
-		$html .= '<li><strong>Update Cache:</strong> ' . esc_html( $cache_status ) . '</li>';
-		$html .= '</ul>';
-		$html .= '<p><em>Use the "Check for Updates" link on the Plugins page to force a fresh update check.</em></p>';
-
-		return $html;
+		// build HTML using output buffering and short-echo tags for compactness
+		ob_start();
+		?>
+		<h3>Repository Information</h3>
+		<ul>
+			<li>
+				<strong><a href="<?= $escaped_repo_url ?>" target="_blank" rel="noopener noreferrer">GitHub Repository</a></strong>
+			</li>
+			<li>
+				<strong><a href="<?= $escaped_latest_release_url ?>" target="_blank" rel="noopener noreferrer">Latest Release</a></strong>
+			</li>
+			<li>
+				<strong><a href="<?= $escaped_issues_url ?>" rel="noopener noreferrer">Issue Tracker</a></strong>
+			</li>
+		</ul>
+		<p><em>Use the "Check for Updates" link on the Plugins page to force a fresh update check.</em></p>
+		<?php
+		return ob_get_clean();
 	}
 
 	/**

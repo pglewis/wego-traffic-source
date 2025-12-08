@@ -85,11 +85,11 @@ class WeGo_Event_Type_Settings {
 		$event_types = self::get_event_types();
 		?>
 		<div class="wrap">
-			<h1><?php esc_html_e( 'Event Types', self::$text_domain ); ?></h1>
+			<h1><?= esc_html( 'Event Types', self::$text_domain ); ?></h1>
 
 			<?php if ( isset( $_GET['updated'] ) && sanitize_text_field( wp_unslash( $_GET['updated'] ) ) === '1' ) : ?>
 				<div class="notice notice-success is-dismissible">
-					<p><?php esc_html_e( 'Event types saved.', self::$text_domain ); ?></p>
+					<p><?= esc_html( 'Event types saved.', self::$text_domain ); ?></p>
 				</div>
 			<?php endif; ?>
 
@@ -106,25 +106,25 @@ class WeGo_Event_Type_Settings {
 			}
 			?>
 
-			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
+			<form method="post" action="<?= esc_url( admin_url( 'admin-post.php' ) ); ?>">
 				<input type="hidden" name="action" value="wego_save_event_types">
 				<?php wp_nonce_field( self::NONCE_ACTION, 'wego_event_types_nonce' ); ?>
 
 				<table class="wp-list-table widefat fixed striped" id="wego-event-types-table">
 					<thead>
 						<tr>
-							<th style="width: 20%;"><?php esc_html_e( 'Name', self::$text_domain ); ?></th>
-							<th style="width: 15%;"><?php esc_html_e( 'Slug', self::$text_domain ); ?></th>
-							<th style="width: 20%;"><?php esc_html_e( 'Primary Value Label', self::$text_domain ); ?></th>
-							<th style="width: 30%;"><?php esc_html_e( 'CSS Selector(s)', self::$text_domain ); ?></th>
-							<th style="width: 8%;"><?php esc_html_e( 'Active', self::$text_domain ); ?></th>
-							<th style="width: 7%;"><?php esc_html_e( 'Delete', self::$text_domain ); ?></th>
+							<th style="width: 20%;">Name</th>
+							<th style="width: 15%;">Slug</th>
+							<th style="width: 20%;">Primary Value Label</th>
+							<th style="width: 30%;">CSS Selector(s)</th>
+							<th style="width: 8%;">Active</th>
+							<th style="width: 7%;">Delete</th>
 						</tr>
 					</thead>
-					<tbody id="wego-event-types-body" data-row-index="<?php echo esc_attr( count( $event_types ) ); ?>">
+					<tbody id="wego-event-types-body" data-row-index="<?= esc_attr( count( $event_types ) ); ?>">
 						<?php if ( empty( $event_types ) ) : ?>
 							<tr class="wego-no-items">
-								<td colspan="6"><?php esc_html_e( 'No event types configured. Click "Add Event Type" to create one.', self::$text_domain ); ?></td>
+								<td colspan="6"><?= esc_html( 'No event types configured. Click "Add Event Type" to create one.', self::$text_domain ); ?></td>
 							</tr>
 						<?php else : ?>
 							<?php foreach ( $event_types as $index => $event_type ) : ?>
@@ -136,7 +136,7 @@ class WeGo_Event_Type_Settings {
 
 				<p style="margin-top: 15px;">
 					<button type="button" class="button" id="wego-add-event-type">
-						<?php esc_html_e( 'Add Event Type', self::$text_domain ); ?>
+						<?= esc_html( 'Add Event Type', self::$text_domain ); ?>
 					</button>
 				</p>
 
@@ -144,19 +144,19 @@ class WeGo_Event_Type_Settings {
 			</form>
 
 			<div class="wego-selector-help" style="background: #fff; border: 1px solid #c3c4c7; border-left: 4px solid #2271b1; padding: 12px 16px; margin: 15px 0; max-width: 800px;">
-				<p style="margin-top: 0;"><strong><?php esc_html_e( 'CSS Selector Examples:', self::$text_domain ); ?></strong></p>
+				<p style="margin-top: 0;"><strong>CSS Selector Examples:</strong></p>
 				<ul style="margin: 0 0 12px 20px; list-style: disc;">
-					<li><code>a.schedule-button</code> — <?php esc_html_e( 'Links with a specific class', self::$text_domain ); ?></li>
-					<li><code>a#booking-link</code> — <?php esc_html_e( 'Link with a specific ID', self::$text_domain ); ?></li>
-					<li><code>a.cta-button, a.book-now</code> — <?php esc_html_e( 'Multiple selectors (comma-separated)', self::$text_domain ); ?></li>
-					<li><code>a[href*="calendly.com"]</code> — <?php esc_html_e( 'Links containing "calendly.com" in the URL', self::$text_domain ); ?></li>
-					<li><code>a[href^="https://booking.example.com"]</code> — <?php esc_html_e( 'Links starting with a specific URL', self::$text_domain ); ?></li>
-					<li><code>a[href$=".pdf"]</code> — <?php esc_html_e( 'Links to PDF files', self::$text_domain ); ?></li>
+					<li><code>a.schedule-button</code> — Links with a specific class</li>
+					<li><code>a#booking-link</code> — Link with a specific ID</li>
+					<li><code>a.this, a.or-that</code> — Multiple selectors, comma-separated, matches if any are matched</li>
+					<li><code>a[href*="calendly.com"]</code> — href contains "calendly.com" anywhere</li>
+					<li><code>a[href^="https://booking.example.com"]</code> — href begins with a specific string</li>
+					<li><code>a[href$=".pdf"]</code> — href ends with a specific string (example: all PDF files)</li>
 				</ul>
 				<p>Note that only link clicks can be targeted (<code>a</code> tags only)</p>
 				<p style="margin: 0;">
-					<a href="https://developer.mozilla.org/en-US/docs/Learn_web_development/Core/Styling_basics/Basic_selectors" target="_blank" rel="noopener">
-						<?php esc_html_e( 'Learn more about CSS selectors on MDN', self::$text_domain ); ?> ↗
+					<a href="https://vsdentalcollege.edu.in/static/media/css.1a50a159.pdf" target="_blank" rel="noopener noreferrer">
+						CSS Selector Cheat Sheet ↗
 					</a>
 				</p>
 			</div>
@@ -181,39 +181,39 @@ class WeGo_Event_Type_Settings {
 		<tr>
 			<td>
 				<input type="text"
-					name="event_types[<?php echo esc_attr( $index ); ?>][name]"
-					value="<?php echo esc_attr( $name ); ?>"
+					name="event_types[<?= esc_attr( $index ); ?>][name]"
+					value="<?= esc_attr( $name ); ?>"
 					class="wego-event-name"
-					placeholder="<?php esc_attr_e( 'e.g., Schedule Clicks', self::$text_domain ); ?>">
+					placeholder="<?= esc_attr( 'e.g., Schedule Clicks', self::$text_domain ); ?>">
 			</td>
 			<td>
 				<input type="text"
-					name="event_types[<?php echo esc_attr( $index ); ?>][slug]"
-					value="<?php echo esc_attr( $slug ); ?>"
+					name="event_types[<?= esc_attr( $index ); ?>][slug]"
+					value="<?= esc_attr( $slug ); ?>"
 					class="wego-event-slug"
-					placeholder="<?php esc_attr_e( 'auto-generated', self::$text_domain ); ?>"
-					maxlength="<?php echo esc_attr( self::MAX_SLUG_LENGTH ); ?>"
-					<?php echo $slug ? 'data-manual="true"' : ''; ?>>
+					placeholder="<?= esc_attr( 'auto-generated', self::$text_domain ); ?>"
+					maxlength="<?= esc_attr( self::MAX_SLUG_LENGTH ); ?>"
+					<?= $slug ? 'data-manual="true"' : ''; ?>>
 			</td>
 			<td>
 				<input type="text"
-					name="event_types[<?php echo esc_attr( $index ); ?>][primary_value_label]"
-					value="<?php echo esc_attr( $primary_label ); ?>"
-					placeholder="<?php esc_attr_e( 'e.g., Booking URL', self::$text_domain ); ?>">
+					name="event_types[<?= esc_attr( $index ); ?>][primary_value_label]"
+					value="<?= esc_attr( $primary_label ); ?>"
+					placeholder="<?= esc_attr( 'e.g., Booking URL', self::$text_domain ); ?>">
 			</td>
 			<td>
 				<textarea
-					name="event_types[<?php echo esc_attr( $index ); ?>][css_selectors]"
-					placeholder="<?php esc_attr_e( 'e.g., a[href*=&quot;calendly.com&quot;]', self::$text_domain ); ?>"><?php echo esc_textarea( $css_selectors ); ?></textarea>
+					name="event_types[<?= esc_attr( $index ); ?>][css_selectors]"
+					placeholder="<?= esc_attr( 'e.g., a[href*=&quot;calendly.com&quot;]', self::$text_domain ); ?>"><?= esc_textarea( $css_selectors ); ?></textarea>
 			</td>
 			<td style="text-align: center;">
 				<input type="checkbox"
-					name="event_types[<?php echo esc_attr( $index ); ?>][active]"
+					name="event_types[<?= esc_attr( $index ); ?>][active]"
 					value="1"
 					<?php checked( $active ); ?>>
 			</td>
 			<td style="text-align: center;">
-				<span class="dashicons dashicons-trash wego-delete-row" title="<?php esc_attr_e( 'Delete', self::$text_domain ); ?>"></span>
+				<span class="dashicons dashicons-trash wego-delete-row" title="<?= esc_attr( 'Delete', self::$text_domain ); ?>"></span>
 			</td>
 		</tr>
 		<?php
