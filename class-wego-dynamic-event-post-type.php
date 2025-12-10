@@ -44,14 +44,9 @@ class WeGo_Dynamic_Event_Post_Type {
 	const METABOX_NONCE = 'wego_dynamic_event_nonce';
 
 	/**
-	 * Text domain for translations
-	 */
-	private static $text_domain;
-
-	/**
 	 * Registered instances keyed by post type slug
 	 */
-	private static $instances = array();
+	private static $instances = [];
 
 	/**
 	 * Instance properties
@@ -63,9 +58,7 @@ class WeGo_Dynamic_Event_Post_Type {
 	/**
 	 * Initialize all dynamic event CPTs from active event type configurations
 	 */
-	public static function init( $text_domain ) {
-		self::$text_domain = $text_domain;
-
+	public static function init() {
 		// Get active event types from settings (options load immediately, no timing issues)
 		$active_event_types = WeGo_Event_Type_Settings::get_active_event_types();
 
@@ -98,25 +91,25 @@ class WeGo_Dynamic_Event_Post_Type {
 		$this->export_action = 'export_' . $this->post_type_slug . '_csv';
 
 		// Register custom post type
-		add_action( 'init', array( $this, 'register_post_type' ), 11 );
+		add_action( 'init', [ $this, 'register_post_type' ], 11 );
 
 		// Admin assets
-		add_action( 'admin_enqueue_scripts', array( $this, 'enqueue_admin_assets' ) );
+		add_action( 'admin_enqueue_scripts', [ $this, 'enqueue_admin_assets' ] );
 
 		// Customize admin list table
-		add_filter( 'manage_' . $this->post_type_slug . '_posts_columns', array( $this, 'manage_posts_columns' ) );
-		add_action( 'manage_' . $this->post_type_slug . '_posts_custom_column', array( $this, 'manage_posts_custom_column' ), 10, 2 );
-		add_filter( 'manage_edit-' . $this->post_type_slug . '_sortable_columns', array( $this, 'manage_edit_sortable_columns' ) );
-		add_action( 'restrict_manage_posts', array( $this, 'add_admin_filter_dropdown' ) );
-		add_action( 'pre_get_posts', array( $this, 'modify_admin_list_query' ) );
+		add_filter( 'manage_' . $this->post_type_slug . '_posts_columns', [ $this, 'manage_posts_columns' ] );
+		add_action( 'manage_' . $this->post_type_slug . '_posts_custom_column', [ $this, 'manage_posts_custom_column' ], 10, 2 );
+		add_filter( 'manage_edit-' . $this->post_type_slug . '_sortable_columns', [ $this, 'manage_edit_sortable_columns' ] );
+		add_action( 'restrict_manage_posts', [ $this, 'add_admin_filter_dropdown' ] );
+		add_action( 'pre_get_posts', [ $this, 'modify_admin_list_query' ] );
 
 		// Edit screen metabox
-		add_action( 'add_meta_boxes_' . $this->post_type_slug, array( $this, 'add_metaboxes' ) );
-		add_action( 'save_post_' . $this->post_type_slug, array( $this, 'save_metabox' ) );
+		add_action( 'add_meta_boxes_' . $this->post_type_slug, [ $this, 'add_metaboxes' ] );
+		add_action( 'save_post_' . $this->post_type_slug, [ $this, 'save_metabox' ] );
 
 		// CSV Export
-		add_action( 'admin_action_' . $this->export_action, array( $this, 'export_csv' ) );
-		add_filter( 'views_edit-' . $this->post_type_slug, array( $this, 'add_export_button' ) );
+		add_action( 'admin_action_' . $this->export_action, [ $this, 'export_csv' ] );
+		add_filter( 'views_edit-' . $this->post_type_slug, [ $this, 'add_export_button' ] );
 	}
 
 	/**
@@ -199,28 +192,28 @@ class WeGo_Dynamic_Event_Post_Type {
 
 		register_post_type(
 			$this->post_type_slug,
-			array(
-				'labels' => array(
+			[
+				'labels' => [
 					'name'          => $name,
 					'singular_name' => $name,
-					'add_new_item'  => sprintf( __( 'Add New %s', self::$text_domain ), $name ),
-					'edit_item'     => sprintf( __( 'Edit %s', self::$text_domain ), $name ),
-					'new_item'      => sprintf( __( 'New %s', self::$text_domain ), $name ),
-					'view_item'     => sprintf( __( 'View %s', self::$text_domain ), $name ),
-					'search_items'  => sprintf( __( 'Search %s', self::$text_domain ), $name ),
-					'not_found'     => sprintf( __( 'No %s found', self::$text_domain ), strtolower( $name ) ),
-				),
+					'add_new_item'  => sprintf( __( 'Add New %s', 'wego-traffic-source' ), $name ),
+					'edit_item'     => sprintf( __( 'Edit %s', 'wego-traffic-source' ), $name ),
+					'new_item'      => sprintf( __( 'New %s', 'wego-traffic-source' ), $name ),
+					'view_item'     => sprintf( __( 'View %s', 'wego-traffic-source' ), $name ),
+					'search_items'  => sprintf( __( 'Search %s', 'wego-traffic-source' ), $name ),
+					'not_found'     => sprintf( __( 'No %s found', 'wego-traffic-source' ), strtolower( $name ) ),
+				],
 				'public'            => false,
 				'show_ui'           => true,
 				'show_in_menu'      => 'wego-tracking',
 				'capability_type'   => 'post',
-				'supports'          => array( 'title' ),
+				'supports'          => [ 'title' ],
 				'show_in_admin_bar' => false,
-			)
+			]
 		);
 
 		// Remove the built-in month dropdown filter
-		add_filter( 'disable_months_dropdown', array( $this, 'disable_months_dropdown' ), 10, 2 );
+		add_filter( 'disable_months_dropdown', [ $this, 'disable_months_dropdown' ], 10, 2 );
 	}
 
 	/**
@@ -239,18 +232,18 @@ class WeGo_Dynamic_Event_Post_Type {
 	public function manage_posts_columns( $columns ) {
 		$primary_label = $this->event_type_config['primary_value_label'];
 		if ( empty( $primary_label ) ) {
-			$primary_label = __( 'Primary Value', self::$text_domain );
+			$primary_label = __( 'Primary Value', 'wego-traffic-source' );
 		}
 
-		$new_columns = array();
+		$new_columns = [];
 		$new_columns['cb'] = $columns['cb'];
 		$new_columns['title'] = $primary_label;
-		$new_columns[ self::COLUMN_PAGE_URL ] = __( 'Page URL', self::$text_domain );
-		$new_columns[ self::COLUMN_TRAFFIC_SOURCE ] = __( 'Traffic Source', self::$text_domain );
-		$new_columns[ self::COLUMN_DEVICE_TYPE ] = __( 'Device Type', self::$text_domain );
-		$new_columns[ self::COLUMN_BROWSER_FAMILY ] = __( 'Browser', self::$text_domain );
-		$new_columns[ self::COLUMN_OS_FAMILY ] = __( 'OS', self::$text_domain );
-		$new_columns[ self::COLUMN_CLICK_DATE_TIME ] = __( 'Date/Time', self::$text_domain );
+		$new_columns[ self::COLUMN_PAGE_URL ] = __( 'Page URL', 'wego-traffic-source' );
+		$new_columns[ self::COLUMN_TRAFFIC_SOURCE ] = __( 'Traffic Source', 'wego-traffic-source' );
+		$new_columns[ self::COLUMN_DEVICE_TYPE ] = __( 'Device Type', 'wego-traffic-source' );
+		$new_columns[ self::COLUMN_BROWSER_FAMILY ] = __( 'Browser', 'wego-traffic-source' );
+		$new_columns[ self::COLUMN_OS_FAMILY ] = __( 'OS', 'wego-traffic-source' );
+		$new_columns[ self::COLUMN_CLICK_DATE_TIME ] = __( 'Date/Time', 'wego-traffic-source' );
 		return $new_columns;
 	}
 
@@ -329,7 +322,7 @@ class WeGo_Dynamic_Event_Post_Type {
 			: '';
 
 		echo '<select name="' . esc_attr( self::TRAFFIC_SOURCE_FILTER_PARAM ) . '" style="max-width:200px;">';
-		echo '<option value="">' . esc_html__( 'All Traffic Sources', self::$text_domain ) . '</option>';
+		echo '<option value="">' . esc_html__( 'All Traffic Sources', 'wego-traffic-source' ) . '</option>';
 
 		foreach ( $traffic_sources as $traffic_source ) {
 			printf(
@@ -362,7 +355,7 @@ class WeGo_Dynamic_Event_Post_Type {
 			: '';
 
 		echo '<select name="' . esc_attr( self::DEVICE_TYPE_FILTER_PARAM ) . '" style="max-width:150px; margin-left: 5px;">';
-		echo '<option value="">' . esc_html__( 'All Devices', self::$text_domain ) . '</option>';
+		echo '<option value="">' . esc_html__( 'All Devices', 'wego-traffic-source' ) . '</option>';
 
 		foreach ( $device_types as $device_type ) {
 			printf(
@@ -395,7 +388,7 @@ class WeGo_Dynamic_Event_Post_Type {
 			: '';
 
 		echo '<select name="' . esc_attr( self::BROWSER_FAMILY_FILTER_PARAM ) . '" style="max-width:150px; margin-left: 5px;">';
-		echo '<option value="">' . esc_html__( 'All Browsers', self::$text_domain ) . '</option>';
+		echo '<option value="">' . esc_html__( 'All Browsers', 'wego-traffic-source' ) . '</option>';
 
 		foreach ( $browser_families as $browser_family ) {
 			printf(
@@ -428,7 +421,7 @@ class WeGo_Dynamic_Event_Post_Type {
 			: '';
 
 		echo '<select name="' . esc_attr( self::OS_FAMILY_FILTER_PARAM ) . '" style="max-width:150px; margin-left: 5px;">';
-		echo '<option value="">' . esc_html__( 'All OS', self::$text_domain ) . '</option>';
+		echo '<option value="">' . esc_html__( 'All OS', 'wego-traffic-source' ) . '</option>';
 
 		foreach ( $os_families as $os_family ) {
 			printf(
@@ -447,9 +440,9 @@ class WeGo_Dynamic_Event_Post_Type {
 
 		echo '<br>';
 		echo '<div class="wego-date-filter-group">';
-		echo '<label for="' . esc_attr( self::DATE_FROM_PARAM ) . '">' . esc_html__( 'From:', self::$text_domain ) . '</label>';
+		echo '<label for="' . esc_attr( self::DATE_FROM_PARAM ) . '">' . esc_html__( 'From:', 'wego-traffic-source' ) . '</label>';
 		echo '<input type="date" id="' . esc_attr( self::DATE_FROM_PARAM ) . '" name="' . esc_attr( self::DATE_FROM_PARAM ) . '" value="' . esc_attr( $date_from ) . '">';
-		echo '<label for="' . esc_attr( self::DATE_TO_PARAM ) . '">' . esc_html__( 'To:', self::$text_domain ) . '</label>';
+		echo '<label for="' . esc_attr( self::DATE_TO_PARAM ) . '">' . esc_html__( 'To:', 'wego-traffic-source' ) . '</label>';
 		echo '<input type="date" id="' . esc_attr( self::DATE_TO_PARAM ) . '" name="' . esc_attr( self::DATE_TO_PARAM ) . '" value="' . esc_attr( $date_to ) . '">';
 		echo '</div>';
 
@@ -462,14 +455,14 @@ class WeGo_Dynamic_Event_Post_Type {
 			! empty( $date_to );
 
 		$reset_url = admin_url( 'edit.php' );
-		$reset_url = add_query_arg( array(
+		$reset_url = add_query_arg( [
 			'post_type' => $this->post_type_slug,
-		), $reset_url );
+		], $reset_url );
 
 		if ( $has_filters ) {
-			echo '<a href="' . esc_url( $reset_url ) . '" class="button">' . esc_html__( 'Reset Filters', self::$text_domain ) . '</a>';
+			echo '<a href="' . esc_url( $reset_url ) . '" class="button">' . esc_html__( 'Reset Filters', 'wego-traffic-source' ) . '</a>';
 		} else {
-			echo '<a href="#" class="button disabled" style="pointer-events: none; opacity: 0.5;" disabled>' . esc_html__( 'Reset Filters', self::$text_domain ) . '</a>';
+			echo '<a href="#" class="button disabled" style="pointer-events: none; opacity: 0.5;" disabled>' . esc_html__( 'Reset Filters', 'wego-traffic-source' ) . '</a>';
 		}
 	}	/**
 	 * Modify admin list query:
@@ -492,12 +485,12 @@ class WeGo_Dynamic_Event_Post_Type {
 
 		// Handle meta column sorting
 		$orderby = $query->get( 'orderby' );
-		$meta_columns = array(
+		$meta_columns = [
 			self::COLUMN_TRAFFIC_SOURCE,
 			self::COLUMN_DEVICE_TYPE,
 			self::COLUMN_BROWSER_FAMILY,
 			self::COLUMN_OS_FAMILY,
-		);
+		];
 
 		if ( in_array( $orderby, $meta_columns, true ) ) {
 			$query->set( 'meta_key', $orderby );
@@ -506,44 +499,44 @@ class WeGo_Dynamic_Event_Post_Type {
 
 		// Default sort by date DESC if not manually set
 		if ( ! isset( $_GET['orderby'] ) && ! isset( $_GET['order'] ) ) {
-			$redirect_url = add_query_arg( array(
+			$redirect_url = add_query_arg( [
 				'orderby' => 'post_date',
 				'order'   => 'desc',
-			) );
+			] );
 
 			wp_redirect( $redirect_url );
 			exit;
 		}
 
 		// Build meta_query for filters
-		$meta_query = array();
+		$meta_query = [];
 
 		if ( ! empty( $_GET[ self::TRAFFIC_SOURCE_FILTER_PARAM ] ) ) {
-			$meta_query[] = array(
+			$meta_query[] = [
 				'key'   => self::COLUMN_TRAFFIC_SOURCE,
 				'value' => sanitize_text_field( wp_unslash( $_GET[ self::TRAFFIC_SOURCE_FILTER_PARAM ] ) ),
-			);
+			];
 		}
 
 		if ( ! empty( $_GET[ self::DEVICE_TYPE_FILTER_PARAM ] ) ) {
-			$meta_query[] = array(
+			$meta_query[] = [
 				'key'   => self::COLUMN_DEVICE_TYPE,
 				'value' => sanitize_text_field( wp_unslash( $_GET[ self::DEVICE_TYPE_FILTER_PARAM ] ) ),
-			);
+			];
 		}
 
 		if ( ! empty( $_GET[ self::BROWSER_FAMILY_FILTER_PARAM ] ) ) {
-			$meta_query[] = array(
+			$meta_query[] = [
 				'key'   => self::COLUMN_BROWSER_FAMILY,
 				'value' => sanitize_text_field( wp_unslash( $_GET[ self::BROWSER_FAMILY_FILTER_PARAM ] ) ),
-			);
+			];
 		}
 
 		if ( ! empty( $_GET[ self::OS_FAMILY_FILTER_PARAM ] ) ) {
-			$meta_query[] = array(
+			$meta_query[] = [
 				'key'   => self::COLUMN_OS_FAMILY,
 				'value' => sanitize_text_field( wp_unslash( $_GET[ self::OS_FAMILY_FILTER_PARAM ] ) ),
-			);
+			];
 		}
 
 		if ( ! empty( $meta_query ) ) {
@@ -559,7 +552,7 @@ class WeGo_Dynamic_Event_Post_Type {
 		$date_to = isset( $_GET[ self::DATE_TO_PARAM ] ) ? sanitize_text_field( wp_unslash( $_GET[ self::DATE_TO_PARAM ] ) ) : '';
 
 		if ( ! empty( $date_from ) || ! empty( $date_to ) ) {
-			$date_query = array();
+			$date_query = [];
 
 			if ( ! empty( $date_from ) ) {
 				$date_query['after'] = $date_from;
@@ -571,7 +564,7 @@ class WeGo_Dynamic_Event_Post_Type {
 
 			if ( ! empty( $date_query ) ) {
 				$date_query['inclusive'] = true;
-				$query->set( 'date_query', array( $date_query ) );
+				$query->set( 'date_query', [ $date_query ] );
 			}
 		}
 	}
@@ -584,8 +577,8 @@ class WeGo_Dynamic_Event_Post_Type {
 
 		add_meta_box(
 			'wego_dynamic_event_details_metabox',
-			sprintf( __( '%s Details', self::$text_domain ), $name ),
-			array( $this, 'render_details_metabox' ),
+			sprintf( __( '%s Details', 'wego-traffic-source' ), $name ),
+			[ $this, 'render_details_metabox' ],
 			$this->post_type_slug,
 			'normal',
 			'high'
@@ -606,28 +599,28 @@ class WeGo_Dynamic_Event_Post_Type {
 		wp_nonce_field( self::METABOX_NONCE, self::METABOX_NONCE );
 		?>
 		<p>
-			<label for="wego_click_date_time"><?php esc_html_e( 'Date/Time:', self::$text_domain ); ?></label>
-			<input type="text" id="wego_click_date_time" name="wego_click_date_time" value="<?php echo esc_attr( $formatted_date_time ); ?>" style="width: 100%;" readonly>
+			<label for="wego_click_date_time"><?= esc_html__( 'Date/Time:', 'wego-traffic-source' ); ?></label>
+			<input type="text" id="wego_click_date_time" name="wego_click_date_time" value="<?= esc_attr( $formatted_date_time ); ?>" style="width: 100%;" readonly>
 		</p>
 		<p>
-			<label for="wego_traffic_source"><?php esc_html_e( 'Traffic Source:', self::$text_domain ); ?></label>
-			<input type="text" id="wego_traffic_source" name="wego_traffic_source" value="<?php echo esc_attr( $traffic_source ); ?>" style="width: 100%;" readonly>
+			<label for="wego_traffic_source"><?= esc_html__( 'Traffic Source:', 'wego-traffic-source' ); ?></label>
+			<input type="text" id="wego_traffic_source" name="wego_traffic_source" value="<?= esc_attr( $traffic_source ); ?>" style="width: 100%;" readonly>
 		</p>
 		<p>
-			<label for="wego_device_type"><?php esc_html_e( 'Device Type:', self::$text_domain ); ?></label>
-			<input type="text" id="wego_device_type" name="wego_device_type" value="<?php echo esc_attr( $device_type ); ?>" style="width: 100%;" readonly>
+			<label for="wego_device_type"><?= esc_html__( 'Device Type:', 'wego-traffic-source' ); ?></label>
+			<input type="text" id="wego_device_type" name="wego_device_type" value="<?= esc_attr( $device_type ); ?>" style="width: 100%;" readonly>
 		</p>
 		<p>
-			<label for="wego_browser_family"><?php esc_html_e( 'Browser:', self::$text_domain ); ?></label>
-			<input type="text" id="wego_browser_family" name="wego_browser_family" value="<?php echo esc_attr( $browser_family ); ?>" style="width: 100%;" readonly>
+			<label for="wego_browser_family"><?= esc_html__( 'Browser:', 'wego-traffic-source' ); ?></label>
+			<input type="text" id="wego_browser_family" name="wego_browser_family" value="<?= esc_attr( $browser_family ); ?>" style="width: 100%;" readonly>
 		</p>
 		<p>
-			<label for="wego_os_family"><?php esc_html_e( 'Operating System:', self::$text_domain ); ?></label>
-			<input type="text" id="wego_os_family" name="wego_os_family" value="<?php echo esc_attr( $os_family ); ?>" style="width: 100%;" readonly>
+			<label for="wego_os_family"><?= esc_html__( 'Operating System:', 'wego-traffic-source' ); ?></label>
+			<input type="text" id="wego_os_family" name="wego_os_family" value="<?= esc_attr( $os_family ); ?>" style="width: 100%;" readonly>
 		</p>
 		<p>
-			<label for="wego_page_url"><?php esc_html_e( 'Page URL:', self::$text_domain ); ?></label>
-			<input type="text" id="wego_page_url" name="wego_page_url" value="<?php echo esc_attr( $page_url ); ?>" style="width: 100%;" readonly>
+			<label for="wego_page_url"><?= esc_html__( 'Page URL:', 'wego-traffic-source' ); ?></label>
+			<input type="text" id="wego_page_url" name="wego_page_url" value="<?= esc_attr( $page_url ); ?>" style="width: 100%;" readonly>
 		</p>
 		<?php
 	}
@@ -656,10 +649,10 @@ class WeGo_Dynamic_Event_Post_Type {
 	 */
 	public function add_export_button( $views ) {
 		$url = admin_url( 'edit.php' );
-		$url = add_query_arg( array(
+		$url = add_query_arg( [
 			'post_type' => $this->post_type_slug,
 			'action'    => $this->export_action,
-		), $url );
+		], $url );
 
 		// Preserve current filters if set
 		if ( ! empty( $_GET[ self::TRAFFIC_SOURCE_FILTER_PARAM ] ) ) {
@@ -706,7 +699,7 @@ class WeGo_Dynamic_Event_Post_Type {
 
 		echo '<div style="margin: 10px 0;">';
 		echo '<a href="' . esc_url( $url ) . '" class="button button-primary" style="margin-left: 5px;">';
-		echo esc_html__( 'Export to CSV', self::$text_domain );
+		echo esc_html__( 'Export to CSV', 'wego-traffic-source' );
 		echo '</a>';
 		echo '</div>';
 
@@ -719,52 +712,52 @@ class WeGo_Dynamic_Event_Post_Type {
 	public function export_csv() {
 		// Verify nonce
 		if ( ! isset( $_GET['_wpnonce'] ) || ! wp_verify_nonce( sanitize_text_field( wp_unslash( $_GET['_wpnonce'] ) ), $this->export_action ) ) {
-			wp_die( __( 'Security check failed', self::$text_domain ) );
+			wp_die( __( 'Security check failed', 'wego-traffic-source' ) );
 		}
 
 		// Check user capabilities
 		if ( ! current_user_can( 'edit_posts' ) ) {
-			wp_die( __( 'You do not have permission to export data', self::$text_domain ) );
+			wp_die( __( 'You do not have permission to export data', 'wego-traffic-source' ) );
 		}
 
 		// Build query args
-		$args = array(
+		$args = [
 			'post_type'      => $this->post_type_slug,
 			'posts_per_page' => -1,
 			'post_status'    => 'publish',
 			'orderby'        => 'date',
 			'order'          => 'DESC',
-		);
+		];
 
 		// Build meta_query for filters
-		$meta_query = array();
+		$meta_query = [];
 
 		if ( ! empty( $_GET[ self::TRAFFIC_SOURCE_FILTER_PARAM ] ) ) {
-			$meta_query[] = array(
+			$meta_query[] = [
 				'key'   => self::COLUMN_TRAFFIC_SOURCE,
 				'value' => sanitize_text_field( wp_unslash( $_GET[ self::TRAFFIC_SOURCE_FILTER_PARAM ] ) ),
-			);
+			];
 		}
 
 		if ( ! empty( $_GET[ self::DEVICE_TYPE_FILTER_PARAM ] ) ) {
-			$meta_query[] = array(
+			$meta_query[] = [
 				'key'   => self::COLUMN_DEVICE_TYPE,
 				'value' => sanitize_text_field( wp_unslash( $_GET[ self::DEVICE_TYPE_FILTER_PARAM ] ) ),
-			);
+			];
 		}
 
 		if ( ! empty( $_GET[ self::BROWSER_FAMILY_FILTER_PARAM ] ) ) {
-			$meta_query[] = array(
+			$meta_query[] = [
 				'key'   => self::COLUMN_BROWSER_FAMILY,
 				'value' => sanitize_text_field( wp_unslash( $_GET[ self::BROWSER_FAMILY_FILTER_PARAM ] ) ),
-			);
+			];
 		}
 
 		if ( ! empty( $_GET[ self::OS_FAMILY_FILTER_PARAM ] ) ) {
-			$meta_query[] = array(
+			$meta_query[] = [
 				'key'   => self::COLUMN_OS_FAMILY,
 				'value' => sanitize_text_field( wp_unslash( $_GET[ self::OS_FAMILY_FILTER_PARAM ] ) ),
-			);
+			];
 		}
 
 		if ( ! empty( $meta_query ) ) {
@@ -780,7 +773,7 @@ class WeGo_Dynamic_Event_Post_Type {
 		$date_to = isset( $_GET[ self::DATE_TO_PARAM ] ) ? sanitize_text_field( wp_unslash( $_GET[ self::DATE_TO_PARAM ] ) ) : '';
 
 		if ( ! empty( $date_from ) || ! empty( $date_to ) ) {
-			$date_query = array();
+			$date_query = [];
 
 			if ( ! empty( $date_from ) ) {
 				$date_query['after'] = $date_from;
@@ -792,7 +785,7 @@ class WeGo_Dynamic_Event_Post_Type {
 
 			if ( ! empty( $date_query ) ) {
 				$date_query['inclusive'] = true;
-				$args['date_query'] = array( $date_query );
+				$args['date_query'] = [ $date_query ];
 			}
 		}
 
@@ -814,18 +807,18 @@ class WeGo_Dynamic_Event_Post_Type {
 		// Write CSV headers
 		$primary_label = $this->event_type_config['primary_value_label'];
 		if ( empty( $primary_label ) ) {
-			$primary_label = __( 'Primary Value', self::$text_domain );
+			$primary_label = __( 'Primary Value', 'wego-traffic-source' );
 		}
 
-		fputcsv( $output, array(
+		fputcsv( $output, [
 			$primary_label,
-			__( 'Page URL', self::$text_domain ),
-			__( 'Traffic Source', self::$text_domain ),
-			__( 'Device Type', self::$text_domain ),
-			__( 'Browser', self::$text_domain ),
-			__( 'Operating System', self::$text_domain ),
-			__( 'Date/Time', self::$text_domain ),
-		) );
+			__( 'Page URL', 'wego-traffic-source' ),
+			__( 'Traffic Source', 'wego-traffic-source' ),
+			__( 'Device Type', 'wego-traffic-source' ),
+			__( 'Browser', 'wego-traffic-source' ),
+			__( 'Operating System', 'wego-traffic-source' ),
+			__( 'Date/Time', 'wego-traffic-source' ),
+		] );
 
 		// Write data rows
 		if ( $query->have_posts() ) {
@@ -843,7 +836,7 @@ class WeGo_Dynamic_Event_Post_Type {
 				$os_family = get_post_meta( $post_id, self::COLUMN_OS_FAMILY, true );
 				$page_url = get_post_meta( $post_id, self::COLUMN_PAGE_URL, true );
 
-				fputcsv( $output, array(
+				fputcsv( $output, [
 					$primary_value,
 					$page_url ? $page_url : '',
 					$traffic_source ? $traffic_source : '',
@@ -851,7 +844,7 @@ class WeGo_Dynamic_Event_Post_Type {
 					$browser_family ? $browser_family : '',
 					$os_family ? $os_family : '',
 					$formatted_date_time,
-				) );
+				] );
 			}
 		}
 

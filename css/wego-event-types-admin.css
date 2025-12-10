@@ -3,7 +3,8 @@
  */
 
 #wego-event-types-table input[type="text"],
-#wego-event-types-table textarea {
+#wego-event-types-table textarea,
+#wego-event-types-table select {
 	width: 100%;
 }
 
@@ -32,4 +33,67 @@
 #wego-event-types-table .form-required:after {
 	content: " *";
 	color: #dc3232;
+}
+
+/* Event Source Fields */
+.wego-config-fields {
+	transition: opacity 0.2s ease-in-out;
+}
+
+.wego-config-fields[style*="display: none"] {
+	opacity: 0;
+}
+
+.wego-config-fields:not([style*="display: none"]) {
+	opacity: 1;
+}
+
+/* Event Source Type Select */
+.wego-event-source-type {
+	padding: 4px 8px;
+	border: 1px solid #8c8f94;
+	border-radius: 4px;
+	background-color: #fff;
+}
+
+/* Podium Config Checkboxes */
+.wego-podium-checkboxes {
+	padding: 4px 0;
+}
+
+.wego-podium-checkboxes label {
+	display: block;
+	margin-bottom: 6px;
+	font-size: 13px;
+}
+
+.wego-podium-checkboxes input[type="checkbox"] {
+	margin-right: 6px;
+}
+
+.wego-podium-checkboxes.form-invalid {
+	border: 1px solid #dc3232;
+	border-radius: 4px;
+	padding: 8px;
+	background-color: #fef7f7;
+}
+
+/* Help Section Styling */
+.wego-help-section {
+	font-size: 13px;
+	line-height: 1.6;
+}
+
+.wego-help-section code {
+	background-color: #f0f0f1;
+	padding: 2px 6px;
+	border-radius: 3px;
+	font-family: monospace;
+	font-size: 12px;
+}
+
+.wego-help-section hr {
+	margin: 16px 0;
+	border: none;
+	border-top: 1px solid #dcdcde;
 }

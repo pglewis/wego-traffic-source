@@ -5,63 +5,67 @@
 class WeGo_Event_Type_Settings {
 
 	/**
-	 * Option name for storing event types
+	 * Option/slug constants
 	 */
-	const OPTION_NAME = 'wego_traffic_source_event_types';
-
-	/**
-	 * Maximum slug length (WordPress CPT slugs max 20 chars, minus 5 for 'wego_' prefix)
-	 */
+	const OPTION_EVENT_TYPES = 'wego_traffic_source_event_types';
+	const PARENT_MENU_SLUG = 'wego-tracking';
+	const PAGE_SLUG = 'wego-event-types';
 	const MAX_SLUG_LENGTH = 15;
 
 	/**
-	 * Settings page slug
+	 * Nonce actions
 	 */
-	const PAGE_SLUG = 'wego-event-types';
+	const NONCE_ACTION_SAVE_EVENT_TYPES = 'wego_save_event_types';
 
 	/**
-	 * Nonce action for form security
+	 * Transient keys
 	 */
-	const NONCE_ACTION = 'wego_save_event_types';
+	const TRANSIENT_EVENT_TYPES_ERRORS = 'wego_event_types_errors';
 
 	/**
-	 * Text domain for translations
+	 * Error codes
 	 */
-	private static $text_domain;
+	const ERROR_INVALID_CSS_SELECTOR = 'invalid_css_selector';
+	const ERROR_NO_PODIUM_EVENTS = 'no_podium_events';
+	const ERROR_INVALID_PODIUM_EVENT = 'invalid_podium_event';
+	const ERROR_UNKNOWN_EVENT_SOURCE_TYPE = 'unknown_event_source_type';
+	const ERROR_MULTIPLE_PODIUM_TYPES = 'multiple_podium_types';
+
+	/**
+	 * Event source types
+	 */
+	const EVENT_SOURCE_TYPE_LINK_CLICK = 'link_click';
+	const EVENT_SOURCE_TYPE_PODIUM_WIDGET = 'podium_widget';
+
+	/**
+	 * Valid Podium event names
+	 */
+	const PODIUM_EVENTS = [ 'Bubble Clicked', 'Conversation Started', 'Widget Closed' ];
+
+	/**
+	 * Get event source type metadata for admin configuration
+	 *
+	 * @return array Event source type metadata
+	 */
+	public static function get_event_source_types_metadata() {
+		return [
+			self::EVENT_SOURCE_TYPE_LINK_CLICK => [
+				'label' => __( 'Link Click', 'wego-traffic-source' ),
+				'validation_type' => 'css_selector',
+			],
+			self::EVENT_SOURCE_TYPE_PODIUM_WIDGET => [
+				'label' => __( 'Podium Widget', 'wego-traffic-source' ),
+				'validation_type' => 'podium_events',
+			],
+		];
+	}
 
 	/**
 	 * Initialize the settings page
 	 */
-	public static function init( $text_domain ) {
-		self::$text_domain = $text_domain;
-
-		add_action( 'admin_menu', array( __CLASS__, 'add_settings_page' ), 11 );
-		add_action( 'admin_enqueue_scripts', array( __CLASS__, 'enqueue_admin_assets' ) );
-		add_action( 'admin_post_wego_save_event_types', array( __CLASS__, 'handle_form_submission' ) );
-	}
-
-	/**
-	 * Enqueue admin scripts and styles for the settings page
-	 */
-	public static function enqueue_admin_assets( $hook ) {
-		// Only load on our settings page
-		if ( $hook !== 'wego-tracking_page_' . self::PAGE_SLUG ) {
-			return;
-		}
-
-		wp_enqueue_style(
-			'wego-event-types-admin',
-			plugins_url( 'css/wego-event-types-admin.css', __FILE__ ),
-			array(),
-			'1.0'
-		);
-
-		wp_enqueue_script_module(
-			'wego-event-types-admin',
-			plugins_url( 'js/wego-event-types-admin.js', __FILE__ ),
-			array(),
-			'1.0'
-		);
+	public static function init() {
+		add_action( 'admin_menu', [ __CLASS__, 'add_settings_page' ], 11 );
+		add_action( 'admin_post_wego_save_event_types', [ __CLASS__, 'handle_form_submission' ] );
 	}
 
 	/**
@@ -69,12 +73,12 @@ class WeGo_Event_Type_Settings {
 	 */
 	public static function add_settings_page() {
 		add_submenu_page(
-			'wego-tracking',
-			__( 'Event Types', self::$text_domain ),
-			__( 'Event Types', self::$text_domain ),
+			self::PARENT_MENU_SLUG,
+			__( 'Event Types', 'wego-traffic-source' ),
+			__( 'Event Types', 'wego-traffic-source' ),
 			'manage_options',
 			self::PAGE_SLUG,
-			array( __CLASS__, 'render_settings_page' )
+			[ __CLASS__, 'render_settings_page' ]
 		);
 	}
 
@@ -85,11 +89,11 @@ class WeGo_Event_Type_Settings {
 		$event_types = self::get_event_types();
 		?>
 		<div class="wrap">
-			<h1><?= esc_html( 'Event Types', self::$text_domain ); ?></h1>
+			<h1><?= esc_html__( 'Event Types', 'wego-traffic-source' ); ?></h1>
 
 			<?php if ( isset( $_GET['updated'] ) && sanitize_text_field( wp_unslash( $_GET['updated'] ) ) === '1' ) : ?>
 				<div class="notice notice-success is-dismissible">
-					<p><?= esc_html( 'Event types saved.', self::$text_domain ); ?></p>
+					<p><?= esc_html__( 'Event types saved.', 'wego-traffic-source' ); ?></p>
 				</div>
 			<?php endif; ?>
 
@@ -108,15 +112,16 @@ class WeGo_Event_Type_Settings {
 
 			<form method="post" action="<?= esc_url( admin_url( 'admin-post.php' ) ); ?>">
 				<input type="hidden" name="action" value="wego_save_event_types">
-				<?php wp_nonce_field( self::NONCE_ACTION, 'wego_event_types_nonce' ); ?>
+				<?php wp_nonce_field( self::NONCE_ACTION_SAVE_EVENT_TYPES, 'wego_event_types_nonce' ); ?>
 
 				<table class="wp-list-table widefat fixed striped" id="wego-event-types-table">
 					<thead>
 						<tr>
-							<th style="width: 20%;">Name</th>
-							<th style="width: 15%;">Slug</th>
-							<th style="width: 20%;">Primary Value Label</th>
-							<th style="width: 30%;">CSS Selector(s)</th>
+							<th style="width: 18%;">Name</th>
+							<th style="width: 12%;">Slug</th>
+							<th style="width: 15%;">Primary Value Label</th>
+							<th style="width: 12%;">Event Source Type</th>
+							<th style="width: 28%;">Event Source</th>
 							<th style="width: 8%;">Active</th>
 							<th style="width: 7%;">Delete</th>
 						</tr>
@@ -124,7 +129,7 @@ class WeGo_Event_Type_Settings {
 					<tbody id="wego-event-types-body" data-row-index="<?= esc_attr( count( $event_types ) ); ?>">
 						<?php if ( empty( $event_types ) ) : ?>
 							<tr class="wego-no-items">
-								<td colspan="6"><?= esc_html( 'No event types configured. Click "Add Event Type" to create one.', self::$text_domain ); ?></td>
+								<td colspan="7"><?= esc_html__( 'No event types configured. Click "Add Event Type" to create one.', 'wego-traffic-source' ); ?></td>
 							</tr>
 						<?php else : ?>
 							<?php foreach ( $event_types as $index => $event_type ) : ?>
@@ -136,25 +141,24 @@ class WeGo_Event_Type_Settings {
 
 				<p style="margin-top: 15px;">
 					<button type="button" class="button" id="wego-add-event-type">
-						<?= esc_html( 'Add Event Type', self::$text_domain ); ?>
+						<?= esc_html__( 'Add Event Type', 'wego-traffic-source' ); ?>
 					</button>
 				</p>
 
-				<?php submit_button( __( 'Save Event Types', self::$text_domain ) ); ?>
+				<?php submit_button( __( 'Save Event Types', 'wego-traffic-source' ) ); ?>
 			</form>
 
-			<div class="wego-selector-help" style="background: #fff; border: 1px solid #c3c4c7; border-left: 4px solid #2271b1; padding: 12px 16px; margin: 15px 0; max-width: 800px;">
-				<p style="margin-top: 0;"><strong>CSS Selector Examples:</strong></p>
+			<div class="wego-help-section" style="background: #fff; border: 1px solid #c3c4c7; border-left: 4px solid #2271b1; padding: 12px 16px; margin: 15px 0; max-width: 900px;">
+				<p style="margin-top: 0;"><strong>Link Click CSS Selector Examples:</strong></p>
 				<ul style="margin: 0 0 12px 20px; list-style: disc;">
 					<li><code>a.schedule-button</code> — Links with a specific class</li>
 					<li><code>a#booking-link</code> — Link with a specific ID</li>
-					<li><code>a.this, a.or-that</code> — Multiple selectors, comma-separated, matches if any are matched</li>
-					<li><code>a[href*="calendly.com"]</code> — href contains "calendly.com" anywhere</li>
-					<li><code>a[href^="https://booking.example.com"]</code> — href begins with a specific string</li>
-					<li><code>a[href$=".pdf"]</code> — href ends with a specific string (example: all PDF files)</li>
+					<li><code>a.this, a.or-that</code> — Multiple selectors, comma-separated</li>
+					<li><code>a[href*="calendly.com"]</code> — href contains "calendly.com"</li>
+					<li><code>a[href^="https://booking.example.com"]</code> — href begins with string</li>
+					<li><code>a[href$=".pdf"]</code> — href ends with string (e.g., PDF files)</li>
 				</ul>
-				<p>Note that only link clicks can be targeted (<code>a</code> tags only)</p>
-				<p style="margin: 0;">
+				<p style="margin: 12px 0 0 0;">
 					<a href="https://vsdentalcollege.edu.in/static/media/css.1a50a159.pdf" target="_blank" rel="noopener noreferrer">
 						CSS Selector Cheat Sheet ↗
 					</a>
@@ -162,10 +166,63 @@ class WeGo_Event_Type_Settings {
 			</div>
 		</div>
 
-		<script type="text/template" id="wego-event-type-row-template">
-			<?php self::render_event_type_row( '{{INDEX}}', array() ); ?>
-		</script>
+		<template id="wego-event-type-row-template">
+			<?php self::render_event_type_row( '{{INDEX}}', [] ); ?>
+		</template>
+
+		<!-- Event Source Config Templates -->
+		<template id="wego-event-source-link_click">
+			<?php self::render_event_source_config( '{{INDEX}}', 'link_click', [] ); ?>
+		</template>
+
+		<template id="wego-event-source-podium_widget">
+			<?php self::render_event_source_config( '{{INDEX}}', 'podium_widget', [] ); ?>
+		</template>
 		<?php
+	}
+
+	/**
+	 * Render event source configuration fields
+	 */
+	private static function render_event_source_config( $index, $event_source_type, $event_type ) {
+		switch ( $event_source_type ) {
+			case 'link_click':
+				$link_selector = '';
+				if ( isset( $event_type['event_source']['selector'] ) ) {
+					$link_selector = $event_type['event_source']['selector'];
+				}
+				?>
+				<div class="wego-config-fields" data-event-source-type="link_click">
+					<textarea
+						name="event_types[<?= esc_attr( $index ); ?>][event_source_selector]"
+						placeholder="<?= esc_attr__( 'e.g., a[href*="calendly.com"]', 'wego-traffic-source' ); ?>"><?= esc_textarea( $link_selector ); ?></textarea>
+				</div>
+				<?php
+				break;
+
+			case 'podium_widget':
+				$podium_events = [];
+				if ( isset( $event_type['event_source']['events'] ) ) {
+					$podium_events = $event_type['event_source']['events'];
+				}
+				$all_podium_events = [ 'Bubble Clicked', 'Conversation Started', 'Widget Closed' ];
+				?>
+				<div class="wego-config-fields" data-event-source-type="podium_widget">
+					<div class="wego-podium-checkboxes">
+						<?php foreach ( $all_podium_events as $event ) : ?>
+							<label style="display: block; margin-bottom: 6px;">
+								<input type="checkbox"
+									name="event_types[<?= esc_attr( $index ); ?>][event_source_events][]"
+									value="<?= esc_attr( $event ); ?>"
+									<?php checked( in_array( $event, $podium_events, true ) ); ?>>
+								<?= esc_html( $event ); ?>
+							</label>
+						<?php endforeach; ?>
+					</div>
+				</div>
+				<?php
+				break;
+		}
 	}
 
 	/**
@@ -175,23 +232,43 @@ class WeGo_Event_Type_Settings {
 		$name = isset( $event_type['name'] ) ? $event_type['name'] : '';
 		$slug = isset( $event_type['slug'] ) ? $event_type['slug'] : '';
 		$primary_label = isset( $event_type['primary_value_label'] ) ? $event_type['primary_value_label'] : '';
-		$css_selectors = isset( $event_type['css_selectors'] ) ? $event_type['css_selectors'] : '';
 		$active = isset( $event_type['active'] ) ? $event_type['active'] : false;
+
+		// Extract event_source data (handle both new and legacy formats)
+		$event_source_type = 'link_click'; // Default
+		$link_selector = '';
+		$podium_events = []; // Array of selected events
+
+		if ( isset( $event_type['event_source'] ) && is_array( $event_type['event_source'] ) ) {
+			// New format
+			$event_source_type = $event_type['event_source']['type'];
+			if ( $event_source_type === 'link_click' ) {
+				$link_selector = isset( $event_type['event_source']['selector'] ) ? $event_type['event_source']['selector'] : '';
+			} elseif ( $event_source_type === 'podium_widget' ) {
+				$podium_events = isset( $event_type['event_source']['events'] ) ? $event_type['event_source']['events'] : [];
+			}
+		} elseif ( isset( $event_type['css_selectors'] ) ) {
+			// Legacy format (pre-migration)
+			$event_source_type = 'link_click';
+			$link_selector = $event_type['css_selectors'];
+		}
+
+		$all_podium_events = [ 'Bubble Clicked', 'Conversation Started', 'Widget Closed' ];
 		?>
-		<tr>
+		<tr data-row-index="<?= esc_attr( $index ); ?>">
 			<td>
 				<input type="text"
 					name="event_types[<?= esc_attr( $index ); ?>][name]"
 					value="<?= esc_attr( $name ); ?>"
 					class="wego-event-name"
-					placeholder="<?= esc_attr( 'e.g., Schedule Clicks', self::$text_domain ); ?>">
+					placeholder="<?= esc_attr__( 'e.g., Schedule Clicks', 'wego-traffic-source' ); ?>">
 			</td>
 			<td>
 				<input type="text"
 					name="event_types[<?= esc_attr( $index ); ?>][slug]"
 					value="<?= esc_attr( $slug ); ?>"
 					class="wego-event-slug"
-					placeholder="<?= esc_attr( 'auto-generated', self::$text_domain ); ?>"
+					placeholder="<?= esc_attr__( 'auto-generated', 'wego-traffic-source' ); ?>"
 					maxlength="<?= esc_attr( self::MAX_SLUG_LENGTH ); ?>"
 					<?= $slug ? 'data-manual="true"' : ''; ?>>
 			</td>
@@ -199,12 +276,21 @@ class WeGo_Event_Type_Settings {
 				<input type="text"
 					name="event_types[<?= esc_attr( $index ); ?>][primary_value_label]"
 					value="<?= esc_attr( $primary_label ); ?>"
-					placeholder="<?= esc_attr( 'e.g., Booking URL', self::$text_domain ); ?>">
+					placeholder="<?= esc_attr__( 'e.g., Booking URL', 'wego-traffic-source' ); ?>">
 			</td>
 			<td>
-				<textarea
-					name="event_types[<?= esc_attr( $index ); ?>][css_selectors]"
-					placeholder="<?= esc_attr( 'e.g., a[href*=&quot;calendly.com&quot;]', self::$text_domain ); ?>"><?= esc_textarea( $css_selectors ); ?></textarea>
+				<select name="event_types[<?= esc_attr( $index ); ?>][event_source_type]"
+					class="wego-event-source-type">
+					<option value="<?= esc_attr( self::EVENT_SOURCE_TYPE_LINK_CLICK ); ?>" <?php selected( $event_source_type, self::EVENT_SOURCE_TYPE_LINK_CLICK ); ?>>
+						<?= esc_html__( 'Link Click', 'wego-traffic-source' ); ?>
+					</option>
+					<option value="<?= esc_attr( self::EVENT_SOURCE_TYPE_PODIUM_WIDGET ); ?>" <?php selected( $event_source_type, self::EVENT_SOURCE_TYPE_PODIUM_WIDGET ); ?>>
+						<?= esc_html__( 'Podium Widget', 'wego-traffic-source' ); ?>
+					</option>
+				</select>
+			</td>
+			<td class="wego-config-container">
+				<?php self::render_event_source_config( $index, $event_source_type, $event_type ); ?>
 			</td>
 			<td style="text-align: center;">
 				<input type="checkbox"
@@ -213,7 +299,7 @@ class WeGo_Event_Type_Settings {
 					<?php checked( $active ); ?>>
 			</td>
 			<td style="text-align: center;">
-				<span class="dashicons dashicons-trash wego-delete-row" title="<?= esc_attr( 'Delete', self::$text_domain ); ?>"></span>
+				<span class="dashicons dashicons-trash wego-delete-row" title="<?= esc_attr__( 'Delete', 'wego-traffic-source' ); ?>"></span>
 			</td>
 		</tr>
 		<?php
@@ -224,24 +310,25 @@ class WeGo_Event_Type_Settings {
 	 */
 	public static function handle_form_submission() {
 		// Verify nonce
-		if ( ! isset( $_POST['wego_event_types_nonce'] ) ||
-			 ! wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['wego_event_types_nonce'] ) ), self::NONCE_ACTION ) ) {
-			wp_die( __( 'Security check failed', self::$text_domain ) );
+		   if ( ! isset( $_POST['wego_event_types_nonce'] ) ||
+			   ! wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['wego_event_types_nonce'] ) ), self::NONCE_ACTION_SAVE_EVENT_TYPES ) ) {
+			wp_die( __( 'Security check failed', 'wego-traffic-source' ) );
 		}
 
 		// Check permissions
 		if ( ! current_user_can( 'manage_options' ) ) {
-			wp_die( __( 'You do not have permission to manage event types', self::$text_domain ) );
+			wp_die( __( 'You do not have permission to manage event types', 'wego-traffic-source' ) );
 		}
 
-		$event_types = array();
+		$event_types = [];
+		$errors = [];
 
 		if ( isset( $_POST['event_types'] ) && is_array( $_POST['event_types'] ) ) {
 			foreach ( $_POST['event_types'] as $event_type ) {
 				$name = isset( $event_type['name'] ) ? sanitize_text_field( wp_unslash( $event_type['name'] ) ) : '';
 				$slug = isset( $event_type['slug'] ) ? sanitize_key( wp_unslash( $event_type['slug'] ) ) : '';
 				$primary_label = isset( $event_type['primary_value_label'] ) ? sanitize_text_field( wp_unslash( $event_type['primary_value_label'] ) ) : '';
-				$css_selectors = isset( $event_type['css_selectors'] ) ? sanitize_textarea_field( wp_unslash( $event_type['css_selectors'] ) ) : '';
+				$event_source_type = isset( $event_type['event_source_type'] ) ? sanitize_text_field( wp_unslash( $event_type['event_source_type'] ) ) : 'link_click';
 				$active = isset( $event_type['active'] ) && $event_type['active'] === '1';
 
 				// Skip empty rows
@@ -249,21 +336,73 @@ class WeGo_Event_Type_Settings {
 					continue;
 				}
 
-				// Validate CSS selector: cannot be empty or just 'a'
-				$trimmed_selector = trim( $css_selectors );
-				if ( empty( $trimmed_selector ) || $trimmed_selector === 'a' ) {
-					add_settings_error(
-						'wego_event_types',
-						'invalid_css_selector',
-						sprintf(
-							__( 'Event type "%s": CSS Selector cannot be empty or just "a". Please provide a more specific selector.', self::$text_domain ),
-							$name
-						),
-						'error'
-					);
-					set_transient( 'wego_event_types_errors', get_settings_errors( 'wego_event_types' ), 30 );
-					wp_redirect( admin_url( 'admin.php?page=' . self::PAGE_SLUG . '&error=1' ) );
-					exit;
+				// Build event_source structure based on type
+				$event_source = [ 'type' => $event_source_type ];
+
+				if ( $event_source_type === 'link_click' ) {
+					$selector = isset( $event_type['event_source_selector'] ) ? sanitize_textarea_field( wp_unslash( $event_type['event_source_selector'] ) ) : '';
+
+					// Validate CSS selector
+					$trimmed_selector = trim( $selector );
+					if ( empty( $trimmed_selector ) || $trimmed_selector === 'a' ) {
+						$errors[] = [
+							'code' => 'invalid_css_selector',
+							'message' => sprintf(
+								__( 'Event type "%s": CSS Selector cannot be empty or just "a". Please provide a more specific selector.', 'wego-traffic-source' ),
+								$name
+							)
+						];
+						continue; // Skip this event type
+					}
+
+					$event_source['selector'] = $selector;
+
+				} elseif ( $event_source_type === 'podium_widget' ) {
+					$podium_events = isset( $event_type['event_source_events'] ) && is_array( $event_type['event_source_events'] )
+						? array_map( 'sanitize_text_field', array_map( 'wp_unslash', $event_type['event_source_events'] ) )
+						: [];
+
+					// Validate at least one Podium event is selected
+					if ( empty( $podium_events ) ) {
+						$errors[] = [
+							'code' => 'no_podium_events',
+							'message' => sprintf(
+								__( 'Event type "%s": Please select at least one Podium event to track.', 'wego-traffic-source' ),
+								$name
+							)
+						];
+						continue; // Skip this event type
+					}
+
+					// Validate all selected events are valid
+					$valid_events = [ 'Bubble Clicked', 'Conversation Started', 'Widget Closed' ];
+					foreach ( $podium_events as $podium_event ) {
+						if ( ! in_array( $podium_event, $valid_events, true ) ) {
+							$errors[] = [
+								'code' => 'invalid_podium_event',
+								'message' => sprintf(
+									__( 'Event type "%s": Invalid Podium event "%s" selected.', 'wego-traffic-source' ),
+									$name,
+									$podium_event
+								)
+							];
+							continue 2; // Skip this event type
+						}
+					}
+
+					$event_source['events'] = $podium_events;
+
+				} else {
+					// Unknown event source type
+					$errors[] = [
+						'code' => 'unknown_event_source_type',
+						'message' => sprintf(
+							__( 'Event type "%s": Unknown event source type "%s".', 'wego-traffic-source' ),
+							$name,
+							$event_source_type
+						)
+					];
+					continue; // Skip this event type
 				}
 
 				// Auto-generate slug if empty
@@ -271,7 +410,7 @@ class WeGo_Event_Type_Settings {
 					$slug = sanitize_key( str_replace( ' ', '_', strtolower( $name ) ) );
 				}
 
-				// Enforce max slug length (WordPress CPT slugs max 20 chars, minus 5 for 'wego_' prefix)
+				// Enforce max slug length
 				$slug = substr( $slug, 0, self::MAX_SLUG_LENGTH );
 
 				// Ensure unique slugs
@@ -282,17 +421,38 @@ class WeGo_Event_Type_Settings {
 					$counter++;
 				}
 
-				$event_types[] = array(
+				$event_types[] = [
 					'name'                => $name,
 					'slug'                => $slug,
 					'primary_value_label' => $primary_label,
-					'css_selectors'       => $css_selectors,
+					'event_source'        => $event_source,
 					'active'              => $active,
-				);
+				];
 			}
 		}
 
-		update_option( self::OPTION_NAME, $event_types );
+		// Validate only one Podium event type is configured
+		$podium_count = 0;
+		foreach ( $event_types as $event_type ) {
+			if ( isset( $event_type['event_source']['type'] ) && $event_type['event_source']['type'] === self::EVENT_SOURCE_TYPE_PODIUM_WIDGET ) {
+				$podium_count++;
+			}
+		}
+		if ( $podium_count > 1 ) {
+			$errors[] = [
+				'code' => self::ERROR_MULTIPLE_PODIUM_TYPES,
+				'message' => __( 'Only one Podium Widget event type is allowed. Please consolidate multiple Podium configurations into a single event type.', 'wego-traffic-source' )
+			];
+		}
+
+		// If there were validation errors, redirect back with error messages
+		if ( ! empty( $errors ) ) {
+			set_transient( 'wego_event_types_errors', $errors, 30 );
+			wp_redirect( admin_url( 'admin.php?page=' . self::PAGE_SLUG . '&error=1' ) );
+			exit;
+		}
+
+		update_option( self::OPTION_EVENT_TYPES, $event_types );
 
 		// Redirect back to settings page
 		wp_redirect( admin_url( 'admin.php?page=' . self::PAGE_SLUG . '&updated=1' ) );
@@ -317,7 +477,7 @@ class WeGo_Event_Type_Settings {
 	 * @return array Array of event type configurations
 	 */
 	public static function get_event_types() {
-		return get_option( self::OPTION_NAME, array() );
+		return get_option( self::OPTION_EVENT_TYPES, [] );
 	}
 
 	/**

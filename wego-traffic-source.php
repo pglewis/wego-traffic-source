@@ -2,7 +2,7 @@
 /*
 Plugin Name: WeGo Traffic Source
 Description: Auto-fills traffic source form fields and tracks configurable click events (tel links, booking links, etc.)
-Version: 2.1.9
+Version: 2.2.0
 Requires at least: 6.5
 Author: WeGo Unlimited
 Plugin URI: https://github.com/pglewis/wego-traffic-source/releases/latest
@@ -26,7 +26,7 @@ require_once __DIR__ . '/class-wego-plugin-updater.php';
 /**
  * Run database migrations early, before plugin init
  */
-add_action( 'plugins_loaded', array( 'WeGo_Migrations', 'run' ), 5 );
+add_action( 'plugins_loaded', [ 'WeGo_Migrations', 'run' ], 5 );
 
 class WeGo_Traffic_Source {
 	const REST_NAMESPACE = 'wego/v1';
@@ -36,7 +36,6 @@ class WeGo_Traffic_Source {
 	public static $plugin_dir;
 	public static $plugin_basename;
 	public static $plugin_version;
-	public static $plugin_text_domain;
 
 	/**
 	 * Plugin bootstrap
@@ -48,26 +47,28 @@ class WeGo_Traffic_Source {
 		self::$plugin_dir = trailingslashit( plugin_dir_path( __FILE__ ) );
 		self::$plugin_basename = trailingslashit( dirname( plugin_basename( __FILE__ ) ) );
 		self::$plugin_version = $plugin_data['Version'];
-		self::$plugin_text_domain = $plugin_data['TextDomain'];
 
-		load_plugin_textdomain( self::$plugin_text_domain, false, self::$plugin_basename . 'languages/' );
+		load_plugin_textdomain( 'wego-traffic-source', false, self::$plugin_basename . 'languages/' );
 
 		// Front end scripts
-		add_action( 'wp_enqueue_scripts', array( __CLASS__, 'enqueue_frontend_scripts' ) );
+		add_action( 'wp_enqueue_scripts', [ __CLASS__, 'enqueue_frontend_scripts' ] );
 
 		// Output inline JSON config for dynamic event tracking
-		add_action( 'wp_footer', array( __CLASS__, 'output_tracking_config' ) );
+		add_action( 'wp_footer', [ __CLASS__, 'output_tracking_config' ] );
 
 		// Register REST API endpoint
-		add_action( 'rest_api_init', array( __CLASS__, 'register_rest_routes' ) );
+		add_action( 'rest_api_init', [ __CLASS__, 'register_rest_routes' ] );
 
 		// Register admin menu on init (priority 9) so it exists before CPTs register
 		// at priority 10 and try to add themselves as submenus
-		add_action( 'init', array( __CLASS__, 'register_admin_menu' ), 9 );
+		add_action( 'init', [ __CLASS__, 'register_admin_menu' ], 9 );
+
+		// Enqueue admin assets for Event Type Settings page
+		add_action( 'admin_enqueue_scripts', [ __CLASS__, 'enqueue_admin_assets' ] );
 
 		// Initialize admin (only in admin context)
 		if ( is_admin() ) {
-			WeGo_Event_Type_Settings::init( self::$plugin_text_domain );
+			WeGo_Event_Type_Settings::init();
 			WeGo_Migrations::init_admin_notices();
 
 			// Initialize GitHub auto-updates
@@ -75,7 +76,34 @@ class WeGo_Traffic_Source {
 		}
 
 		// Dynamic event CPTs need to register on init (reads from options, no timing issues)
-		WeGo_Dynamic_Event_Post_Type::init( self::$plugin_text_domain );
+		WeGo_Dynamic_Event_Post_Type::init();
+	}
+
+	/**
+	 * Enqueue admin assets for Event Type Settings page
+	 */
+	public static function enqueue_admin_assets( $hook ) {
+		// Only load on our settings page
+		if ( $hook !== 'wego-tracking_page_' . WeGo_Event_Type_Settings::PAGE_SLUG ) {
+			return;
+		}
+
+		wp_enqueue_style(
+			'wego-event-types-admin',
+			plugins_url( 'css/wego-event-types-admin.css', __FILE__ ),
+			[],
+			self::$plugin_version
+		);
+
+		wp_enqueue_script_module(
+			'wego-event-types-admin',
+			plugins_url( 'js/wego-event-types-admin.js', __FILE__ ),
+			[],
+			self::$plugin_version
+		);
+
+		// Output admin config for event type validation
+		self::output_admin_config();
 	}
 
 	/**
@@ -86,7 +114,7 @@ class WeGo_Traffic_Source {
 		// run in strict mode and have module-level scope (top-level vars are not
 		// globals). Module scripts are deferred by default and execute after the
 		// document is parsed, so the DOM is available at execution time.
-		wp_enqueue_script_module( 'wego-traffic-source', self::$plugin_url . 'js/wego-traffic-source.js', array(), self::$plugin_version );
+		wp_enqueue_script_module( 'wego-traffic-source', self::$plugin_url . 'js/wego-traffic-source.js', [], self::$plugin_version );
 	}
 
 	/**
@@ -96,11 +124,11 @@ class WeGo_Traffic_Source {
 		register_rest_route(
 			self::REST_NAMESPACE,
 			self::REST_TRACK_EVENT_ROUTE,
-			array(
+			[
 				'methods' => 'POST',
-				'callback' => array( __CLASS__, 'log_event' ),
+				'callback' => [ __CLASS__, 'log_event' ],
 				'permission_callback' => '__return_true', // Allow unauthenticated requests
-			)
+			]
 		);
 	}
 
@@ -111,27 +139,46 @@ class WeGo_Traffic_Source {
 		$active_event_types = WeGo_Event_Type_Settings::get_active_event_types();
 
 		// Build event types array for JSON output
-		$event_types = array();
+		$event_types = [];
 		foreach ( $active_event_types as $event_type ) {
-			if ( ! empty( $event_type['css_selectors'] ) ) {
-				$event_types[] = array(
-					'slug'     => $event_type['slug'],
-					'selector' => $event_type['css_selectors'],
-				);
+			if ( ! empty( $event_type['event_source'] ) ) {
+				$event_types[] = [
+					'slug'         => $event_type['slug'],
+					'event_source' => $event_type['event_source'],
+				];
 			}
 		}
 
-		$config = array(
+		$config = [
 			'endpoint'   => rest_url( self::REST_NAMESPACE . self::REST_TRACK_EVENT_ROUTE ),
 			'eventTypes' => $event_types,
-		);
+		];
 
 		wp_print_inline_script_tag(
 			wp_json_encode( $config ),
-			array(
+			[
 				'type'  => 'application/json',
 				'class' => 'wego-tracking-config',
-			)
+			]
+		);
+	}
+
+	/**
+	 * Output inline JSON config for admin event type management
+	 */
+	public static function output_admin_config() {
+		$event_source_types = WeGo_Event_Type_Settings::get_event_source_types_metadata();
+
+		$config = [
+			'eventSourceTypes' => $event_source_types,
+		];
+
+		wp_print_inline_script_tag(
+			wp_json_encode( $config ),
+			[
+				'type'  => 'application/json',
+				'class' => 'wego-admin-config',
+			]
 		);
 	}
 
@@ -152,7 +199,7 @@ class WeGo_Traffic_Source {
 			return new WP_Error(
 				'missing_required_fields',
 				__( 'Missing required fields: event_type and primary_value', 'wego-traffic-source' ),
-				array( 'status' => 400 )
+				[ 'status' => 400 ]
 			);
 		}
 
@@ -171,7 +218,7 @@ class WeGo_Traffic_Source {
 			return new WP_Error(
 				'invalid_event_type',
 				__( 'Invalid or inactive event type', 'wego-traffic-source' ),
-				array( 'status' => 400 )
+				[ 'status' => 400 ]
 			);
 		}
 
@@ -179,31 +226,31 @@ class WeGo_Traffic_Source {
 		$post_type = 'wego_' . $event_type;
 
 		// Create new post
-		$post_id = wp_insert_post( array(
+		$post_id = wp_insert_post( [
 			'post_type'   => $post_type,
 			'post_title'  => $primary_value,
 			'post_status' => 'publish',
-			'meta_input'  => array(
+			'meta_input'  => [
 				WeGo_Dynamic_Event_Post_Type::COLUMN_TRAFFIC_SOURCE => $traffic_source,
 				WeGo_Dynamic_Event_Post_Type::COLUMN_DEVICE_TYPE    => $device_type,
 				WeGo_Dynamic_Event_Post_Type::COLUMN_PAGE_URL       => $page_url,
 				WeGo_Dynamic_Event_Post_Type::COLUMN_BROWSER_FAMILY => $browser_family,
 				WeGo_Dynamic_Event_Post_Type::COLUMN_OS_FAMILY      => $os_family,
-			),
-		) );
+			],
+		] );
 
 		if ( is_wp_error( $post_id ) ) {
 			return new WP_Error(
 				'insert_failed',
 				__( 'Failed to save event', 'wego-traffic-source' ),
-				array( 'status' => 500 )
+				[ 'status' => 500 ]
 			);
 		}
 
-		return rest_ensure_response( array(
+		return rest_ensure_response( [
 			'success' => true,
 			'post_id' => $post_id,
-		) );
+		] );
 	}
 
 	/**
@@ -212,9 +259,9 @@ class WeGo_Traffic_Source {
 	public static function register_admin_menu() {
 		// Register parent menu. The first submenu item added (Event Types CPT)
 		// will become the default landing page when clicking the parent.
-		add_menu_page(
-			__( 'WeGo Tracking', self::$plugin_text_domain ),
-			__( 'WeGo Tracking', self::$plugin_text_domain ),
+		       add_menu_page(
+			       __( 'WeGo Tracking', 'wego-traffic-source' ),
+			       __( 'WeGo Tracking', 'wego-traffic-source' ),
 			'edit_posts',
 			'wego-tracking',
 			'', // No callback - first submenu becomes the landing page
@@ -223,7 +270,7 @@ class WeGo_Traffic_Source {
 		);
 
 		// Remove the auto-generated duplicate submenu that matches the parent
-		add_action( 'admin_menu', array( __CLASS__, 'remove_duplicate_submenu' ), 99 );
+		add_action( 'admin_menu', [ __CLASS__, 'remove_duplicate_submenu' ], 99 );
 	}
 
 	/**
@@ -238,4 +285,4 @@ class WeGo_Traffic_Source {
 /**
  * Call init after all plugins have loaded
  */
-add_action( 'plugins_loaded', array( 'WeGo_Traffic_Source', 'init' ) );
+add_action( 'plugins_loaded', [ 'WeGo_Traffic_Source', 'init' ] );

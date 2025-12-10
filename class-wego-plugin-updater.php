@@ -87,7 +87,7 @@ class WeGo_Plugin_Updater {
 		$plugin_data = get_plugin_data( $plugin_file );
 
 		if ( empty( $plugin_data['Version'] ) ) {
-			$this->log_error( self::ERROR_PLUGIN_DATA, 'Unable to retrieve plugin version from header', array( 'file' => $plugin_file ) );
+			$this->log_error( self::ERROR_PLUGIN_DATA, 'Unable to retrieve plugin version from header', [ 'file' => $plugin_file ] );
 			$this->current_version = '0.0.0';
 		} else {
 			$this->current_version = $plugin_data['Version'];
@@ -101,28 +101,28 @@ class WeGo_Plugin_Updater {
 	 */
 	private function init_hooks() {
 		// Handle AJAX dismiss request (fires early on AJAX calls)
-		add_action( 'wp_ajax_' . self::NONCE_ACTION_DISMISS_NOTICE, array( $this, 'handle_dismiss_notice' ) );
+		add_action( 'wp_ajax_' . self::NONCE_ACTION_DISMISS_NOTICE, [ $this, 'handle_dismiss_notice' ] );
 
 		// Handle manual update check (fires early in admin)
-		add_action( 'admin_init', array( $this, 'handle_manual_update_check' ) );
+		add_action( 'admin_init', [ $this, 'handle_manual_update_check' ] );
 
 		// Enqueue dismiss notice script (fires during admin page load)
-		add_action( 'admin_enqueue_scripts', array( $this, 'enqueue_dismiss_script' ) );
+		add_action( 'admin_enqueue_scripts', [ $this, 'enqueue_dismiss_script' ] );
 
 		// Display admin notices on plugins.php (fires during admin page render)
-		add_action( 'admin_notices', array( $this, 'display_error_notice' ) );
+		add_action( 'admin_notices', [ $this, 'display_error_notice' ] );
 
 		// Add "Check for Updates" link to plugin actions (fires when plugins list is rendered)
-		add_filter( 'plugin_action_links_' . $this->plugin_slug, array( $this, 'add_check_updates_link' ) );
+		add_filter( 'plugin_action_links_' . $this->plugin_slug, [ $this, 'add_check_updates_link' ] );
 
 		// Check for updates (fires when WordPress checks for plugin updates)
-		add_filter( 'pre_set_site_transient_update_plugins', array( $this, 'check_for_update' ) );
+		add_filter( 'pre_set_site_transient_update_plugins', [ $this, 'check_for_update' ] );
 
 		// Plugin details popup (fires when user clicks "View details" on plugins page)
-		add_filter( 'plugins_api', array( $this, 'plugin_info' ), 10, 3 );
+		add_filter( 'plugins_api', [ $this, 'plugin_info' ], 10, 3 );
 
 		// Modify update source to use GitHub zip (fires during plugin update process)
-		add_filter( 'upgrader_source_selection', array( $this, 'fix_directory_name' ), 10, 4 );
+		add_filter( 'upgrader_source_selection', [ $this, 'fix_directory_name' ], 10, 4 );
 	}
 
 	/**
@@ -133,7 +133,7 @@ class WeGo_Plugin_Updater {
 	 * @param array  $context Additional context data.
 	 * @param bool   $should_log Whether to actually log this error.
 	 */
-	private function log_error( $error_code, $message, $context = array(), $should_log = true ) {
+	private function log_error( $error_code, $message, $context = [], $should_log = true ) {
 		if ( $should_log ) {
 			$log_message = sprintf(
 				'[%s] WeGo Plugin Updater Error (%s): %s | Repo: %s | Context: %s',
@@ -148,12 +148,12 @@ class WeGo_Plugin_Updater {
 		}
 
 		// Store error details in transient for admin notice
-		$error_data = array(
+		$error_data = [
 			'code' => $error_code,
 			'message' => $message,
 			'context' => $context,
 			'timestamp' => current_time( 'Y-m-d H:i:s' ),
-		);
+		];
 
 		set_transient( $this->transient_key_error_data, $error_data, self::CACHE_EXPIRATION_ERROR_NOTICE );
 	}
@@ -191,17 +191,17 @@ class WeGo_Plugin_Updater {
 
 		$error_code = $error_data['code'] ?? null;
 		$message = $error_data['message'] ?? __( 'An unknown error occurred with the plugin updater.', 'wego-traffic-source' );
-		$context = $error_data['context'] ?? array();
+		$context = $error_data['context'] ?? [];
 		$timestamp = $error_data['timestamp'] ?? current_time( 'Y-m-d H:i:s' );
 
-		$error_title_map = array(
+		$error_title_map = [
 			self::ERROR_API_REQUEST_FAILED => __( 'GitHub API Connection Failed', 'wego-traffic-source' ),
 			self::ERROR_API_RATE_LIMIT => __( 'GitHub API Rate Limited', 'wego-traffic-source' ),
 			self::ERROR_INVALID_RESPONSE => __( 'Invalid GitHub API Response', 'wego-traffic-source' ),
 			self::ERROR_JSON_PARSE => __( 'Failed to Parse API Response', 'wego-traffic-source' ),
 			self::ERROR_RENAME_FAILED => __( 'Plugin Update Directory Rename Failed', 'wego-traffic-source' ),
 			self::ERROR_PLUGIN_DATA => __( 'Failed to Read Plugin Metadata', 'wego-traffic-source' ),
-		);
+		];
 
 		$title = $error_title_map[ $error_code ] ?? __( 'Plugin Updater Error', 'wego-traffic-source' );
 
@@ -299,18 +299,18 @@ class WeGo_Plugin_Updater {
 		$current_version = ! empty( $plugin_data['Version'] ) ? $plugin_data['Version'] : $this->current_version;
 
 		// Build plugin info object for WordPress
-		$plugin_info = (object) array(
+		$plugin_info = (object) [
 			'slug'         => dirname( $this->plugin_slug ),
 			'plugin'       => $this->plugin_slug,
 			'new_version'  => $github_version,
 			'url'          => $release->html_url,
 			'package'      => $release->zipball_url,
-			'icons'        => array(),
-			'banners'      => array(),
+			'icons'        => [],
+			'banners'      => [],
 			'tested'       => '',
 			'requires'     => '',
 			'requires_php' => '',
-		);
+		];
 
 		if ( version_compare( $github_version, $current_version, '>' ) ) {
 			// Update available
@@ -350,7 +350,7 @@ class WeGo_Plugin_Updater {
 
 		$plugin_data = get_plugin_data( $this->plugin_file );
 
-		return (object) array(
+		return (object) [
 			'name'              => $plugin_data['Name'],
 			'slug'              => dirname( $this->plugin_slug ),
 			'version'           => $this->parse_version( $release->tag_name ),
@@ -360,14 +360,14 @@ class WeGo_Plugin_Updater {
 			'tested'            => '',
 			'downloaded'        => 0,
 			'last_updated'      => $release->published_at,
-			'sections'          => array(
+			'sections'          => [
 				'description'  => $plugin_data['Description'],
 				'changelog'    => $this->format_release_notes( $release->body ),
 				'repo_info'  => $this->get_repo_info_section(),
-			),
+			],
 			'download_link'     => $release->zipball_url,
-			'banners'           => array(),
-		);
+			'banners'           => [],
+		];
 	}
 
 	/**
@@ -449,20 +449,20 @@ class WeGo_Plugin_Updater {
 			$this->github_repo
 		);
 
-		$response = wp_remote_get( $api_url, array(
-			'headers' => array(
+		$response = wp_remote_get( $api_url, [
+			'headers' => [
 				'Accept'     => 'application/vnd.github.v3+json',
 				'User-Agent' => 'WordPress/' . get_bloginfo( 'version' ) . '; ' . home_url(),
-			),
+			],
 			'timeout' => 10,
-		) );
+		] );
 
 		if ( is_wp_error( $response ) ) {
 			$this->cached_release_data = false;
 			$this->log_error(
 				self::ERROR_API_REQUEST_FAILED,
 				'wp_remote_get failed: ' . $response->get_error_message(),
-				array( 'error_code' => $response->get_error_code() ),
+				[ 'error_code' => $response->get_error_code() ],
 				! $had_cached_value // Only log if this is a new failure
 			);
 			// Cache the failure to prevent hammering the API
@@ -482,7 +482,7 @@ class WeGo_Plugin_Updater {
 				$this->log_error(
 					self::ERROR_API_RATE_LIMIT,
 					'GitHub API rate limited. Status: ' . $response_code . ' | Message: ' . $error_message,
-					array(),
+					[],
 					! $had_cached_value
 				);
 
@@ -492,7 +492,7 @@ class WeGo_Plugin_Updater {
 				$this->log_error(
 					self::ERROR_INVALID_RESPONSE,
 					'HTTP ' . $response_code . ': ' . $error_message,
-					array(),
+					[],
 					! $had_cached_value
 				);
 
@@ -511,7 +511,7 @@ class WeGo_Plugin_Updater {
 			$this->log_error(
 				self::ERROR_JSON_PARSE,
 				'Failed to parse JSON response',
-				array( 'response_snippet' => substr( $body, 0, 200 ) ),
+				[ 'response_snippet' => substr( $body, 0, 200 ) ],
 				! $had_cached_value
 			);
 
@@ -525,7 +525,7 @@ class WeGo_Plugin_Updater {
 			$this->log_error(
 				self::ERROR_JSON_PARSE,
 				'Response missing tag_name field',
-				array( 'response_keys' => array_keys( (array) $release ) ),
+				[ 'response_keys' => array_keys( (array) $release ) ],
 				! $had_cached_value
 			);
 
@@ -690,13 +690,13 @@ class WeGo_Plugin_Updater {
 		check_ajax_referer( self::NONCE_ACTION_DISMISS_NOTICE, 'nonce' );
 
 		if ( ! current_user_can( 'update_plugins' ) ) {
-			wp_send_json_error( array( 'message' => 'Insufficient permissions' ) );
+			wp_send_json_error( [ 'message' => 'Insufficient permissions' ] );
 		}
 
 		$plugin_slug = isset( $_POST['plugin_slug'] ) ? sanitize_text_field( $_POST['plugin_slug'] ) : '';
 
 		if ( empty( $plugin_slug ) || $plugin_slug !== $this->plugin_slug ) {
-			wp_send_json_error( array( 'message' => 'Invalid plugin slug' ) );
+			wp_send_json_error( [ 'message' => 'Invalid plugin slug' ] );
 		}
 
 		// Store dismissal timestamp

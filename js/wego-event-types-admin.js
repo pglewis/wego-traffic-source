@@ -1,26 +1,181 @@
 /**
- * WeGo Event Types Admin - Settings page functionality
+ * State
  */
-
-const tableBody = document.getElementById( 'wego-event-types-body' );
-const addButton = document.getElementById( 'wego-add-event-type' );
-const template = document.getElementById( 'wego-event-type-row-template' );
-const form = document.querySelector( 'form' );
-
-let rowIndex = parseInt( tableBody.dataset.rowIndex, 10 ) || 0;
-
-// Unsaved changes detection
+let rowIndex = 0;
 let originalFormData = null;
 let isDirty = false;
 
-// Capture original form state after page load
-function captureFormState() {
-	originalFormData = new FormData( form );
+/**
+ * DOM References
+ */
+const dom = {
+	tableBody: document.getElementById( 'wego-event-types-body' ),
+	addButton: document.getElementById( 'wego-add-event-type' ),
+	template: document.getElementById( 'wego-event-type-row-template' ),
+	form: document.querySelector( 'form' ),
+	eventSourceTemplates: {}
+};
+
+/**
+ * Get the admin configuration from the JSON script element
+ */
+function getAdminConfig() {
+	const configElement = document.querySelector( 'script.wego-admin-config' );
+	if ( ! configElement ) {
+		console.error( 'WeGo admin config not found' );
+		return null;
+	}
+	return JSON.parse( configElement.textContent );
 }
 
-// Check if form has changed
+/**
+ * Validation handler mapping
+ */
+const validationHandlers = {
+	css_selector: ( row ) => {
+		const selectorField = row.querySelector( 'textarea[name*="[event_source_selector]"]' );
+		const selectorValue = selectorField ? selectorField.value.trim() : '';
+		return {
+			validation: validateCSSSelector( selectorValue ),
+			field: selectorField
+		};
+	},
+	podium_events: ( row ) => {
+		const validation = validatePodiumEvents( row );
+		const checkboxContainer = row.querySelector( '.wego-podium-checkboxes' );
+		return {
+			validation: validation,
+			field: checkboxContainer
+		};
+	}
+};
+
+/**
+ * Build event source configuration from admin config
+ */
+function buildEventSourceConfig() {
+	const config = getAdminConfig();
+	if ( ! config || ! config.eventSourceTypes ) {
+		console.error( 'Invalid admin config' );
+		return {};
+	}
+
+	const eventSourceConfig = {};
+
+	for ( const [ type, meta ] of Object.entries( config.eventSourceTypes ) ) {
+		const handler = validationHandlers[ meta.validation_type ];
+		if ( handler ) {
+			eventSourceConfig[ type ] = { validate: handler };
+		}
+	}
+
+	return eventSourceConfig;
+}
+
+/**
+ * Event Source Configuration
+ */
+const eventSourceConfig = buildEventSourceConfig();
+
+// ========== Core Setup & Execution ==========
+
+init();
+
+/**
+ * Initialization
+ */
+
+function init() {
+	rowIndex = parseInt( dom.tableBody.dataset.rowIndex, 10 ) || 0;
+
+	cacheEventSourceTemplates();
+	captureFormState();
+
+	// Note: Don't call initializeAllRows() here - server-rendered rows already
+	// have correct content. Only swap templates when user changes dropdown.
+
+	window.addEventListener( 'beforeunload', handleBeforeUnload );
+	dom.form.addEventListener( 'submit', handleFormSubmit );
+	dom.form.addEventListener( 'input', updateDirtyFlag );
+	dom.form.addEventListener( 'change', updateDirtyFlag );
+	dom.tableBody.addEventListener( 'click', handleTableClick );
+	dom.tableBody.addEventListener( 'change', handleTableChange );
+	dom.tableBody.addEventListener( 'input', handleTableInput );
+	dom.addButton.addEventListener( 'click', handleAddButtonClick );
+}
+
+function cacheEventSourceTemplates() {
+	// Cache all available event source templates from DOM
+	// This ensures templates are available regardless of active event types
+	const templates = document.querySelectorAll('template[id^="wego-event-source-"]');
+
+	templates.forEach(template => {
+		// Extract type from ID: "wego-event-source-link_click" → "link_click"
+		const eventSourceType = template.id.replace('wego-event-source-', '');
+		dom.eventSourceTemplates[eventSourceType] = template;
+	});
+}
+
+function captureFormState() {
+	originalFormData = new FormData( dom.form );
+}
+
+function initializeAllRows() {
+	const rows = dom.tableBody.querySelectorAll( 'tr:not(.wego-no-items)' );
+	rows.forEach( updateConfigFields );
+}
+
+/**
+ * Validation
+ */
+
+/**
+ * Validate CSS selector syntax
+ */
+function validateCSSSelector( selector ) {
+	if ( ! selector || selector.trim() === '' ) {
+		return { valid: false, error: 'Selector cannot be empty' };
+	}
+
+	const trimmedSelector = selector.trim();
+
+	if ( trimmedSelector === 'a' ) {
+		return { valid: false, error: 'Selector cannot be just "a". Please provide a more specific selector.' };
+	}
+
+	try {
+		const selectors = trimmedSelector.split( ',' ).map( s => s.trim() ).filter( s => s );
+
+		for ( const singleSelector of selectors ) {
+			document.querySelectorAll( singleSelector );
+		}
+
+		return { valid: true };
+	} catch ( error ) {
+		return {
+			valid: false,
+			error: 'Invalid CSS selector'
+		};
+	}
+}
+
+/**
+ * Validate Podium event checkboxes
+ */
+function validatePodiumEvents( row ) {
+	const checkboxes = row.querySelectorAll( 'input[name*="[event_source_events]"]:checked' );
+	if ( checkboxes.length === 0 ) {
+		return { valid: false, error: 'Please select at least one Podium event to track' };
+	}
+	return { valid: true };
+}
+
+/**
+ * Form State Tracking
+ */
+
 function checkFormDirty() {
-	const currentFormData = new FormData( form );
+	const currentFormData = new FormData( dom.form );
 	const current = Array.from( currentFormData.entries() ).sort();
 	const original = Array.from( originalFormData.entries() ).sort();
 
@@ -37,146 +192,195 @@ function checkFormDirty() {
 	return false;
 }
 
-// Update dirty flag on form changes
 function updateDirtyFlag() {
 	isDirty = checkFormDirty();
 }
 
-// Warn before leaving page with unsaved changes
-window.addEventListener( 'beforeunload', function( e ) {
-	if ( isDirty ) {
-		e.preventDefault();
-		e.returnValue = ''; // Chrome requires returnValue to be set
-		return ''; // Some browsers show this message
-	}
-});
-
 /**
- * Validate CSS selector syntax using try/catch with document.querySelectorAll
+ * Row Management
  */
-function validateCSSSelector( selector ) {
-	if ( ! selector || selector.trim() === '' ) {
-		return { valid: false, error: 'Selector cannot be empty' };
+
+function updateConfigFields( row ) {
+	const typeSelect = row.querySelector( '.wego-event-source-type' );
+	const configContainer = row.querySelector( '.wego-config-container' );
+
+	if ( ! typeSelect || ! configContainer ) {
+		return;
 	}
 
-	const trimmedSelector = selector.trim();
+	const selectedType = typeSelect.value;
+	const rowIndexAttr = row.dataset.rowIndex;
+	const templateElement = dom.eventSourceTemplates[ selectedType ];
 
-	// Basic validation: can't be just 'a'
-	if ( trimmedSelector === 'a' ) {
-		return { valid: false, error: 'Selector cannot be just "a". Please provide a more specific selector.' };
-	}
+	// Replace entire config container to prevent DOM bloat from multiple event source types
+	if ( templateElement ) {
+		// Clear existing content
+		configContainer.innerHTML = '';
 
-	try {
-		// Test each selector individually if multiple selectors are comma-separated
-		const selectors = trimmedSelector.split( ',' ).map( s => s.trim() ).filter( s => s );
+		// Clone the template content
+		const clonedContent = templateElement.content.cloneNode( true );
 
-		for ( const singleSelector of selectors ) {
-			// This will throw if the selector is invalid
-			document.querySelectorAll( singleSelector );
+		// Replace placeholders in text nodes and attributes
+		function replacePlaceholders( element ) {
+			if ( element.nodeType === Node.TEXT_NODE ) {
+				element.textContent = element.textContent.replace( /\{\{INDEX\}\}/g, rowIndexAttr );
+			} else if ( element.nodeType === Node.ELEMENT_NODE ) {
+				// Replace in attributes
+				for ( const attr of element.attributes ) {
+					attr.value = attr.value.replace( /\{\{INDEX\}\}/g, rowIndexAttr );
+				}
+				// Recursively process child nodes
+				element.childNodes.forEach( replacePlaceholders );
+			}
 		}
 
-		return { valid: true };
-	} catch ( error ) {
-		return {
-			valid: false,
-			error: `Invalid CSS selector`
-		};
+		clonedContent.childNodes.forEach( replacePlaceholders );
+
+		// Append the cloned content
+		configContainer.appendChild( clonedContent );
 	}
 }
 
-// Validate form before submission
-form.addEventListener( 'submit', function( e ) {
-	// Check all CSS selector fields
-	const rows = tableBody.querySelectorAll( 'tr:not(.wego-no-items)' );
+function addRow() {
+	const noItems = dom.tableBody.querySelector( '.wego-no-items' );
+	if ( noItems ) {
+		noItems.remove();
+	}
+
+	// Clone the template content and replace placeholders
+	const clonedContent = dom.template.content.cloneNode( true );
+
+	// Replace placeholders in text nodes and attributes
+	function replacePlaceholders( element ) {
+		if ( element.nodeType === Node.TEXT_NODE ) {
+			element.textContent = element.textContent.replace( /\{\{INDEX\}\}/g, rowIndex );
+		} else if ( element.nodeType === Node.ELEMENT_NODE ) {
+			// Replace in attributes
+			for ( const attr of element.attributes ) {
+				attr.value = attr.value.replace( /\{\{INDEX\}\}/g, rowIndex );
+			}
+			// Recursively process child nodes
+			element.childNodes.forEach( replacePlaceholders );
+		}
+	}
+
+	clonedContent.childNodes.forEach( replacePlaceholders );
+
+	// Append the cloned content
+	dom.tableBody.appendChild( clonedContent );
+
+	const rows = dom.tableBody.querySelectorAll( 'tr:not(.wego-no-items)' );
+	const newRowElement = rows[ rows.length - 1 ];
+
+	// Initialize config fields after row is in DOM (needs data-row-index attribute)
+	updateConfigFields( newRowElement );
+
+	rowIndex++;
+	updateDirtyFlag();
+}
+
+function deleteRow( row ) {
+	row.remove();
+	updateDirtyFlag();
+}
+
+/**
+ * Event Handlers
+ */
+
+function handleBeforeUnload( e ) {
+	if ( isDirty ) {
+		e.preventDefault();
+		e.returnValue = '';
+		return '';
+	}
+}
+
+function handleFormSubmit( e ) {
+	const rows = dom.tableBody.querySelectorAll( 'tr:not(.wego-no-items)' );
 	let hasError = false;
 	let firstErrorField = null;
-	let errorMessages = [];
+	const errorMessages = [];
 
 	for ( const row of rows ) {
 		const nameField = row.querySelector( 'input[name*="[name]"]' );
-		const selectorField = row.querySelector( 'textarea[name*="[css_selectors]"]' );
+		const typeSelect = row.querySelector( '.wego-event-source-type' );
 
-		// Skip validation if row is empty (will be filtered out server-side)
 		if ( ! nameField || ! nameField.value.trim() ) {
 			continue;
 		}
 
-		// Validate CSS selector
-		const selectorValue = selectorField ? selectorField.value.trim() : '';
-		const validation = validateCSSSelector( selectorValue );
 		const eventName = nameField.value.trim();
+		const eventType = typeSelect ? typeSelect.value : 'link_click';
+		const config = eventSourceConfig[ eventType ];
 
-		if ( ! validation.valid ) {
-			hasError = true;
-			selectorField.classList.add( 'form-invalid' );
+		if ( config && config.validate ) {
+			const result = config.validate( row );
+			const validation = result.validation;
+			const field = result.field;
 
-			// Collect specific error message for this event type
-			errorMessages.push( `"${eventName}": ${validation.error}` );
+			if ( ! validation.valid ) {
+				hasError = true;
+				if ( field ) {
+					field.classList.add( 'form-invalid' );
+				}
+				errorMessages.push( `"${eventName}": ${validation.error}` );
 
-			// Store reference to first error for scrolling
-			if ( ! firstErrorField ) {
-				firstErrorField = selectorField;
+				if ( ! firstErrorField ) {
+					firstErrorField = field;
+				}
+			} else {
+				if ( field ) {
+					field.classList.remove( 'form-invalid' );
+				}
 			}
-		} else {
-			selectorField.classList.remove( 'form-invalid' );
 		}
 	}
 
 	if ( hasError ) {
 		e.preventDefault();
 
-		// Scroll to first error field
 		if ( firstErrorField ) {
 			firstErrorField.scrollIntoView( { behavior: 'smooth', block: 'center' } );
 		}
 
-		// Show specific error messages
-		const errorText = 'Please fix the following CSS selector errors:\n\n' + errorMessages.join( '\n' );
+		const errorText = 'Please fix the following errors:\n\n' + errorMessages.join( '\n' );
 		alert( errorText );
 		return false;
 	}
 
 	isDirty = false;
-});
+}
 
-// Initialize form state tracking
-captureFormState();
+function handleAddButtonClick() {
+	addRow();
+}
 
-// Track changes on all form inputs
-form.addEventListener( 'input', updateDirtyFlag );
-form.addEventListener( 'change', updateDirtyFlag );
-
-// Add new event type row
-addButton.addEventListener( 'click', function() {
-	const newRow = template.innerHTML.replace( /\{\{INDEX\}\}/g, rowIndex );
-
-	// Remove "no items" row if present
-	const noItems = tableBody.querySelector( '.wego-no-items' );
-	if ( noItems ) {
-		noItems.remove();
-	}
-
-	tableBody.insertAdjacentHTML( 'beforeend', newRow );
-	rowIndex++;
-	updateDirtyFlag();
-});
-
-// Handle delete button clicks (event delegation)
-tableBody.addEventListener( 'click', function( e ) {
+function handleTableClick( e ) {
 	if ( e.target.classList.contains( 'wego-delete-row' ) ) {
-		e.target.closest( 'tr' ).remove();
+		const row = e.target.closest( 'tr' );
+		deleteRow( row );
+	}
+}
+
+function handleTableChange( e ) {
+	if ( e.target.classList.contains( 'wego-event-source-type' ) ) {
+		const row = e.target.closest( 'tr' );
+		updateConfigFields( row );
 		updateDirtyFlag();
 	}
-});
 
-// Auto-generate slug from name (event delegation)
-tableBody.addEventListener( 'input', function( e ) {
+	if ( e.target.classList.contains( 'wego-event-slug' ) ) {
+		e.target.dataset.manual = 'true';
+	}
+}
+
+function handleTableInput( e ) {
 	if ( e.target.classList.contains( 'wego-event-name' ) ) {
 		const row = e.target.closest( 'tr' );
 		const slugField = row.querySelector( '.wego-event-slug' );
 		const maxLength = slugField.getAttribute( 'maxlength' ) || 15;
 
-		// Only auto-generate if slug hasn't been manually edited
 		if ( ! slugField.dataset.manual ) {
 			slugField.value = e.target.value
 				.toLowerCase()
@@ -185,11 +389,4 @@ tableBody.addEventListener( 'input', function( e ) {
 				.substring( 0, maxLength );
 		}
 	}
-});
-
-// Mark slug as manually edited
-tableBody.addEventListener( 'change', function( e ) {
-	if ( e.target.classList.contains( 'wego-event-slug' ) ) {
-		e.target.dataset.manual = 'true';
-	}
-});
+}
