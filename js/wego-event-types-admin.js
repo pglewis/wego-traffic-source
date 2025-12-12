@@ -40,6 +40,14 @@ const validationHandlers = {
 			field: selectorField
 		};
 	},
+	form_submit: ( row ) => {
+		const selectorField = row.querySelector( 'textarea[name*="[event_source_selector]"]' );
+		const selectorValue = selectorField ? selectorField.value.trim() : '';
+		return {
+			validation: validateCSSSelector( selectorValue ),
+			field: selectorField
+		};
+	},
 	podium_events: ( row ) => {
 		const validation = validatePodiumEvents( row );
 		const checkboxContainer = row.querySelector( '.wego-podium-checkboxes' );

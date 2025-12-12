@@ -35,6 +35,7 @@ class WeGo_Event_Type_Settings {
 	 * Event source types
 	 */
 	const EVENT_SOURCE_TYPE_LINK_CLICK = 'link_click';
+	const EVENT_SOURCE_TYPE_FORM_SUBMIT = 'form_submit';
 	const EVENT_SOURCE_TYPE_PODIUM_WIDGET = 'podium_widget';
 
 	/**
@@ -51,6 +52,10 @@ class WeGo_Event_Type_Settings {
 		return [
 			self::EVENT_SOURCE_TYPE_LINK_CLICK => [
 				'label' => __( 'Link Click', 'wego-traffic-source' ),
+				'validation_type' => 'css_selector',
+			],
+			self::EVENT_SOURCE_TYPE_FORM_SUBMIT => [
+				'label' => __( 'Form Submit', 'wego-traffic-source' ),
 				'validation_type' => 'css_selector',
 			],
 			self::EVENT_SOURCE_TYPE_PODIUM_WIDGET => [
@@ -175,6 +180,10 @@ class WeGo_Event_Type_Settings {
 			<?php self::render_event_source_config( '{{INDEX}}', 'link_click', [] ); ?>
 		</template>
 
+		<template id="wego-event-source-form_submit">
+			<?php self::render_event_source_config( '{{INDEX}}', 'form_submit', [] ); ?>
+		</template>
+
 		<template id="wego-event-source-podium_widget">
 			<?php self::render_event_source_config( '{{INDEX}}', 'podium_widget', [] ); ?>
 		</template>
@@ -196,6 +205,20 @@ class WeGo_Event_Type_Settings {
 					<textarea
 						name="event_types[<?= esc_attr( $index ); ?>][event_source_selector]"
 						placeholder="<?= esc_attr__( 'e.g., a[href*="calendly.com"]', 'wego-traffic-source' ); ?>"><?= esc_textarea( $link_selector ); ?></textarea>
+				</div>
+				<?php
+				break;
+
+			case 'form_submit':
+				$form_selector = '';
+				if ( isset( $event_type['event_source']['selector'] ) ) {
+					$form_selector = $event_type['event_source']['selector'];
+				}
+				?>
+				<div class="wego-config-fields" data-event-source-type="form_submit">
+					<textarea
+						name="event_types[<?= esc_attr( $index ); ?>][event_source_selector]"
+						placeholder="<?= esc_attr__( 'e.g., form.contact-form, form#booking', 'wego-traffic-source' ); ?>"><?= esc_textarea( $form_selector ); ?></textarea>
 				</div>
 				<?php
 				break;
@@ -284,6 +307,9 @@ class WeGo_Event_Type_Settings {
 					<option value="<?= esc_attr( self::EVENT_SOURCE_TYPE_LINK_CLICK ); ?>" <?php selected( $event_source_type, self::EVENT_SOURCE_TYPE_LINK_CLICK ); ?>>
 						<?= esc_html__( 'Link Click', 'wego-traffic-source' ); ?>
 					</option>
+					<option value="<?= esc_attr( self::EVENT_SOURCE_TYPE_FORM_SUBMIT ); ?>" <?php selected( $event_source_type, self::EVENT_SOURCE_TYPE_FORM_SUBMIT ); ?>>
+						<?= esc_html__( 'Form Submit', 'wego-traffic-source' ); ?>
+					</option>
 					<option value="<?= esc_attr( self::EVENT_SOURCE_TYPE_PODIUM_WIDGET ); ?>" <?php selected( $event_source_type, self::EVENT_SOURCE_TYPE_PODIUM_WIDGET ); ?>>
 						<?= esc_html__( 'Podium Widget', 'wego-traffic-source' ); ?>
 					</option>
@@ -349,6 +375,24 @@ class WeGo_Event_Type_Settings {
 							'code' => 'invalid_css_selector',
 							'message' => sprintf(
 								__( 'Event type "%s": CSS Selector cannot be empty or just "a". Please provide a more specific selector.', 'wego-traffic-source' ),
+								$name
+							)
+						];
+						continue; // Skip this event type
+					}
+
+					$event_source['selector'] = $selector;
+
+				} elseif ( $event_source_type === 'form_submit' ) {
+					$selector = isset( $event_type['event_source_selector'] ) ? sanitize_textarea_field( wp_unslash( $event_type['event_source_selector'] ) ) : '';
+
+					// Validate CSS selector
+					$trimmed_selector = trim( $selector );
+					if ( empty( $trimmed_selector ) ) {
+						$errors[] = [
+							'code' => 'invalid_css_selector',
+							'message' => sprintf(
+								__( 'Event type "%s": CSS Selector cannot be empty. Please provide a form selector.', 'wego-traffic-source' ),
 								$name
 							)
 						];

@@ -49,6 +49,7 @@ const STORAGE_KEY_REFERRER = 'wego_referrer';
 
 // Event source type constants
 const EVENT_SOURCE_TYPE_LINK_CLICK = 'link_click';
+const EVENT_SOURCE_TYPE_FORM_SUBMIT = 'form_submit';
 const EVENT_SOURCE_TYPE_PODIUM_WIDGET = 'podium_widget';
 
 const FORM_FIELD_TARGET_VALUE = 'wego-traffic-source';
@@ -115,6 +116,10 @@ function setupEventTracking() {
 				setupLinkClickTracking( eventType, config.endpoint );
 				break;
 
+			case EVENT_SOURCE_TYPE_FORM_SUBMIT:
+				setupFormSubmitTracking( eventType, config.endpoint );
+				break;
+
 			case EVENT_SOURCE_TYPE_PODIUM_WIDGET:
 				setupPodiumEventTracking( eventType, config.endpoint );
 				break;
@@ -139,6 +144,26 @@ function setupLinkClickTracking( eventType, endpoint ) {
 
 		// href is the primary value for link click events
 		sendEventBeacon( endpoint, eventType.slug, target.getAttribute( 'href' ) );
+	} );
+}
+
+/**
+ * Set up tracking for form submission events
+ *
+ * @param {WeGoEventType} eventType - The form submit event type configuration
+ * @param {string} endpoint - The REST API endpoint URL
+ */
+function setupFormSubmitTracking( eventType, endpoint ) {
+	document.addEventListener( 'submit', ( e ) => {
+		const form = e.target.closest( eventType.event_source.selector );
+		if ( !form ) {
+			return;
+		}
+
+		// Use form ID, action URL, or fallback to 'unknown-form'
+		const primaryValue = form.id || form.action || 'unknown-form';
+
+		sendEventBeacon( endpoint, eventType.slug, primaryValue );
 	} );
 }
 
