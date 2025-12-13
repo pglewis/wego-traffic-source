@@ -2,8 +2,9 @@
 /*
 Plugin Name: WeGo Traffic Source
 Description: Auto-fills traffic source form fields and tracks configurable click events (tel links, booking links, etc.)
-Version: 2.2.1
+Version: 2.3.0
 Requires at least: 6.5
+Requires PHP: 7.4
 Author: WeGo Unlimited
 Plugin URI: https://github.com/pglewis/wego-traffic-source/releases/latest
 License: GPLv2 or later
@@ -18,10 +19,31 @@ define( 'WEGO_GITHUB_REPO', 'wego-traffic-source' );
 /**
  * Load supporting classes
  */
-require_once __DIR__ . '/class-wego-event-type-settings.php';
+require_once __DIR__ . '/class-wego-tracked-event-settings.php';
 require_once __DIR__ . '/class-wego-dynamic-event-post-type.php';
 require_once __DIR__ . '/class-wego-migrations.php';
 require_once __DIR__ . '/class-wego-plugin-updater.php';
+
+/**
+ * Load event source classes
+ */
+require_once __DIR__ . '/event-sources/class-wego-event-source-abstract.php';
+require_once __DIR__ . '/event-sources/class-wego-event-source-registry.php';
+require_once __DIR__ . '/event-sources/class-wego-event-source-link-click.php';
+require_once __DIR__ . '/event-sources/class-wego-event-source-form-submit.php';
+require_once __DIR__ . '/event-sources/class-wego-event-source-podium-widget.php';
+
+/**
+ * Register event source types
+ */
+$wego_event_source_classes = [
+	WeGo_Event_Source_Link_Click::class,
+	WeGo_Event_Source_Form_Submit::class,
+	WeGo_Event_Source_Podium_Widget::class,
+];
+foreach ( $wego_event_source_classes as $class ) {
+	WeGo_Event_Source_Registry::register( $class );
+}
 
 /**
  * Run database migrations early, before plugin init
@@ -68,7 +90,7 @@ class WeGo_Traffic_Source {
 
 		// Initialize admin (only in admin context)
 		if ( is_admin() ) {
-			WeGo_Event_Type_Settings::init();
+			WeGo_Tracked_Event_Settings::init();
 			WeGo_Migrations::init_admin_notices();
 
 			// Initialize GitHub auto-updates
@@ -80,29 +102,29 @@ class WeGo_Traffic_Source {
 	}
 
 	/**
-	 * Enqueue admin assets for Event Type Settings page
+	 * Enqueue admin assets for Tracked Event Settings page
 	 */
 	public static function enqueue_admin_assets( $hook ) {
 		// Only load on our settings page
-		if ( $hook !== 'wego-tracking_page_' . WeGo_Event_Type_Settings::PAGE_SLUG ) {
+		if ( $hook !== 'wego-tracking_page_' . WeGo_Tracked_Event_Settings::PAGE_SLUG ) {
 			return;
 		}
 
 		wp_enqueue_style(
-			'wego-event-types-admin',
-			plugins_url( 'css/wego-event-types-admin.css', __FILE__ ),
+			'wego-tracked-events-admin',
+			plugins_url( 'css/wego-tracked-events-admin.css', __FILE__ ),
 			[],
 			self::$plugin_version
 		);
 
 		wp_enqueue_script_module(
-			'wego-event-types-admin',
-			plugins_url( 'js/wego-event-types-admin.js', __FILE__ ),
+			'wego-tracked-events-admin',
+			plugins_url( 'js/wego-tracked-events-admin.js', __FILE__ ),
 			[],
 			self::$plugin_version
 		);
 
-		// Output admin config for event type validation
+		// Output admin config for tracked event validation
 		self::output_admin_config();
 	}
 
@@ -136,22 +158,22 @@ class WeGo_Traffic_Source {
 	 * Output inline JSON config for frontend event tracking
 	 */
 	public static function output_tracking_config() {
-		$active_event_types = WeGo_Event_Type_Settings::get_active_event_types();
+		$active_tracked_events = WeGo_Tracked_Event_Settings::get_active_tracked_events();
 
-		// Build event types array for JSON output
-		$event_types = [];
-		foreach ( $active_event_types as $event_type ) {
-			if ( ! empty( $event_type['event_source'] ) ) {
-				$event_types[] = [
-					'slug'         => $event_type['slug'],
-					'event_source' => $event_type['event_source'],
+		// Build tracked events array for JSON output
+		$tracked_events = [];
+		foreach ( $active_tracked_events as $tracked_event ) {
+			if ( ! empty( $tracked_event['event_source'] ) ) {
+				$tracked_events[] = [
+					'slug'        => $tracked_event['slug'],
+					'eventSource' => $tracked_event['event_source'],
 				];
 			}
 		}
 
 		$config = [
-			'endpoint'   => rest_url( self::REST_NAMESPACE . self::REST_TRACK_EVENT_ROUTE ),
-			'eventTypes' => $event_types,
+			'endpoint'       => rest_url( self::REST_NAMESPACE . self::REST_TRACK_EVENT_ROUTE ),
+			'trackedEvents'  => $tracked_events,
 		];
 
 		wp_print_inline_script_tag(
@@ -164,10 +186,10 @@ class WeGo_Traffic_Source {
 	}
 
 	/**
-	 * Output inline JSON config for admin event type management
+	 * Output inline JSON config for admin tracked event management
 	 */
 	public static function output_admin_config() {
-		$event_source_types = WeGo_Event_Type_Settings::get_event_source_types_metadata();
+		$event_source_types = WeGo_Tracked_Event_Settings::get_event_source_types_metadata();
 
 		$config = [
 			'eventSourceTypes' => $event_source_types,
@@ -203,12 +225,12 @@ class WeGo_Traffic_Source {
 			);
 		}
 
-		// Validate event_type exists and is active
-		$active_event_types = WeGo_Event_Type_Settings::get_active_event_types();
+		// Validate event_type slug exists and is active
+		$active_tracked_events = WeGo_Tracked_Event_Settings::get_active_tracked_events();
 		$is_valid_event_type = false;
 
-		foreach ( $active_event_types as $et ) {
-			if ( $et['slug'] === $event_type ) {
+		foreach ( $active_tracked_events as $tracked_event ) {
+			if ( $tracked_event['slug'] === $event_type ) {
 				$is_valid_event_type = true;
 				break;
 			}
@@ -257,14 +279,12 @@ class WeGo_Traffic_Source {
 	 * Register the top-level admin menu for WeGo Tracking
 	 */
 	public static function register_admin_menu() {
-		// Register parent menu. The first submenu item added (Event Types CPT)
-		// will become the default landing page when clicking the parent.
-		       add_menu_page(
-			       __( 'WeGo Tracking', 'wego-traffic-source' ),
-			       __( 'WeGo Tracking', 'wego-traffic-source' ),
+		add_menu_page(
+			__( 'WeGo Tracking', 'wego-traffic-source' ),
+			__( 'WeGo Tracking', 'wego-traffic-source' ),
 			'edit_posts',
 			'wego-tracking',
-			'', // No callback - first submenu becomes the landing page
+			'', // No callback - submenus are registered separately
 			'dashicons-analytics',
 			58.8
 		);

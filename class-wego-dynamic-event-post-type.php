@@ -59,11 +59,11 @@ class WeGo_Dynamic_Event_Post_Type {
 	 * Initialize all dynamic event CPTs from active event type configurations
 	 */
 	public static function init() {
-		// Get active event types from settings (options load immediately, no timing issues)
-		$active_event_types = WeGo_Event_Type_Settings::get_active_event_types();
+		// Get active tracked events from settings (options load immediately, no timing issues)
+		$active_tracked_events = WeGo_Tracked_Event_Settings::get_active_tracked_events();
 
-		foreach ( $active_event_types as $event_type ) {
-			$instance = new self( $event_type );
+		foreach ( $active_tracked_events as $tracked_event ) {
+			$instance = new self( $tracked_event );
 			self::$instances[ $instance->get_post_type_slug() ] = $instance;
 		}
 	}

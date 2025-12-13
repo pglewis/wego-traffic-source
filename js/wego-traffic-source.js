@@ -2,33 +2,33 @@
  * Configuration object for WeGo tracking system.
  * Injected into page as <script type="application/json" class="wego-tracking-config">
  *
- * @typedef {Object} WeGoTrackingConfig
+ * @typedef {Object} TrackingConfig
  * @property {string} endpoint - REST API URL where event data is sent via sendBeacon
- * @property {WeGoEventType[]} eventTypes - Array of event type definitions to track
+ * @property {TrackedEvent[]} trackedEvents - Array of tracked event definitions
  *
- * @typedef {Object} WeGoEventType
- * @property {string} slug - Event type identifier, sent to API as event_type
- * @property {WeGoEventSource} event_source - Event source configuration
+ * @typedef {Object} TrackedEvent
+ * @property {string} slug - Tracked event identifier, sent to API as event_type
+ * @property {EventSource} eventSource - Event source configuration
  *
- * @typedef {Object} WeGoEventSource
- * @property {string} type - Type of event source ('link_click' or 'podium_widget')
- * @property {string} [selector] - CSS selector for link_click events
+ * @typedef {Object} EventSource
+ * @property {string} type - Type of event source ('link_click', 'form_submit', or 'podium_widget')
+ * @property {string} [selector] - CSS selector for link_click and form_submit events
  * @property {string[]} [events] - Array of Podium event names for podium_widget events
  *
  * @example
  * {
  *   "endpoint": "https://example.com/wp-json/wego/v1/track-event",
- *   "eventTypes": [
+ *   "trackedEvents": [
  *     {
  *       "slug": "tel_clicks",
- *       "event_source": {
+ *       "eventSource": {
  *         "type": "link_click",
  *         "selector": "a[href^='tel:']"
  *       }
  *     },
  *     {
  *       "slug": "podium_events",
- *       "event_source": {
+ *       "eventSource": {
  *         "type": "podium_widget",
  *         "events": ["Bubble Clicked", "Conversation Started"]
  *       }
@@ -38,6 +38,7 @@
  *
  * @remarks
  * - For link_click: Only elements with an href attribute will trigger events, href becomes primary_value
+ * - For form_submit: Form ID or action URL becomes primary_value
  * - For podium_widget: PodiumEventsCallback is set up to handle Podium events
  * - Click events bubble, so selector matches against clicked element and ancestors
  * - Config is generated server-side via output_tracking_config() in PHP
@@ -48,6 +49,8 @@ const STORAGE_KEY_UTM = 'wego_utm';
 const STORAGE_KEY_REFERRER = 'wego_referrer';
 
 // Event source type constants
+// IMPORTANT: These values intentionally duplicate the PHP constants in WeGo_Tracked_Event_Settings.
+// Dynamic generation was rejected to preserve browser/CDN caching. Keep these in sync with PHP.
 const EVENT_SOURCE_TYPE_LINK_CLICK = 'link_click';
 const EVENT_SOURCE_TYPE_FORM_SUBMIT = 'form_submit';
 const EVENT_SOURCE_TYPE_PODIUM_WIDGET = 'podium_widget';
@@ -66,13 +69,13 @@ populateFormFields();
  * Validate and type-narrow the raw config object
  *
  * @param {any} rawConfig - The parsed JSON config
- * @returns {WeGoTrackingConfig|null} Validated config or null if invalid
+ * @returns {TrackingConfig|null} Validated config or null if invalid
  */
 function validateTrackingConfig( rawConfig ) {
 	if ( !rawConfig || typeof rawConfig !== 'object' ) {
 		return null;
 	}
-	if ( !rawConfig.eventTypes || !Array.isArray( rawConfig.eventTypes ) ) {
+	if ( !rawConfig.trackedEvents || !Array.isArray( rawConfig.trackedEvents ) ) {
 		return null;
 	}
 	if ( !rawConfig.endpoint || typeof rawConfig.endpoint !== 'string' ) {
@@ -80,11 +83,11 @@ function validateTrackingConfig( rawConfig ) {
 	}
 
 	// Basic validation passed, return as typed config
-	return /** @type {WeGoTrackingConfig} */ rawConfig;
+	return /** @type {TrackingConfig} */ ( rawConfig );
 }
 
 /**
- * Set up handlers for the event types in the inline JSON config
+ * Set up handlers for the tracked events in the inline JSON config
  */
 function setupEventTracking() {
 	const configElement = document.querySelector( SELECTOR_CONFIG_DATA_SCRIPT );
@@ -105,23 +108,23 @@ function setupEventTracking() {
 		return;
 	}
 
-	// Set up tracking for each event type based on its source type
-	for ( const eventType of config.eventTypes ) {
-		if ( !eventType.event_source || !eventType.slug ) {
+	// Set up tracking for each tracked event based on its event source type
+	for ( const trackedEvent of config.trackedEvents ) {
+		if ( !trackedEvent.eventSource || !trackedEvent.slug ) {
 			continue;
 		}
 
-		switch ( eventType.event_source.type ) {
+		switch ( trackedEvent.eventSource.type ) {
 			case EVENT_SOURCE_TYPE_LINK_CLICK:
-				setupLinkClickTracking( eventType, config.endpoint );
+				setupLinkClickTracking( trackedEvent, config.endpoint );
 				break;
 
 			case EVENT_SOURCE_TYPE_FORM_SUBMIT:
-				setupFormSubmitTracking( eventType, config.endpoint );
+				setupFormSubmitTracking( trackedEvent, config.endpoint );
 				break;
 
 			case EVENT_SOURCE_TYPE_PODIUM_WIDGET:
-				setupPodiumEventTracking( eventType, config.endpoint );
+				setupPodiumEventTracking( trackedEvent, config.endpoint );
 				break;
 		}
 	}
@@ -132,30 +135,30 @@ function setupEventTracking() {
 /**
  * Set up click tracking for link-based events
  *
- * @param {WeGoEventType} eventType - The event type configuration
+ * @param {TrackedEvent} trackedEvent - The tracked event configuration
  * @param {string} endpoint - The REST API endpoint URL
  */
-function setupLinkClickTracking( eventType, endpoint ) {
+function setupLinkClickTracking( trackedEvent, endpoint ) {
 	document.addEventListener( 'click', ( e ) => {
-		const target = e.target.closest( eventType.event_source.selector );
+		const target = e.target.closest( trackedEvent.eventSource.selector );
 		if ( !target || !target.hasAttribute( 'href' ) ) {
 			return;
 		}
 
 		// href is the primary value for link click events
-		sendEventBeacon( endpoint, eventType.slug, target.getAttribute( 'href' ) );
+		sendEventBeacon( endpoint, trackedEvent.slug, target.getAttribute( 'href' ) );
 	} );
 }
 
 /**
  * Set up tracking for form submission events
  *
- * @param {WeGoEventType} eventType - The form submit event type configuration
+ * @param {TrackedEvent} trackedEvent - The form submit tracked event configuration
  * @param {string} endpoint - The REST API endpoint URL
  */
-function setupFormSubmitTracking( eventType, endpoint ) {
+function setupFormSubmitTracking( trackedEvent, endpoint ) {
 	document.addEventListener( 'submit', ( e ) => {
-		const form = e.target.closest( eventType.event_source.selector );
+		const form = e.target.closest( trackedEvent.eventSource.selector );
 		if ( !form ) {
 			return;
 		}
@@ -163,26 +166,26 @@ function setupFormSubmitTracking( eventType, endpoint ) {
 		// Use form ID, action URL, or fallback to 'unknown-form'
 		const primaryValue = form.id || form.action || 'unknown-form';
 
-		sendEventBeacon( endpoint, eventType.slug, primaryValue );
+		sendEventBeacon( endpoint, trackedEvent.slug, primaryValue );
 	} );
 }
 
 /**
  * Set up tracking for Podium widget events
  *
- * @param {WeGoEventType} eventType - The Podium event type configuration
+ * @param {TrackedEvent} trackedEvent - The Podium tracked event configuration
  * @param {string} endpoint - The REST API endpoint URL
  */
-function setupPodiumEventTracking( eventType, endpoint ) {
+function setupPodiumEventTracking( trackedEvent, endpoint ) {
 	/**
 	 * Podium widget event callback
 	 * @param {string} eventName - The Podium event name that triggered
 	 * @param {any} properties - Additional event properties from Podium
 	 */
 	window.PodiumEventsCallback = function( eventName, properties ) {
-		if ( eventType.event_source.events.includes( eventName ) ) {
+		if ( trackedEvent.eventSource.events.includes( eventName ) ) {
 			// The Podium event name is display-ready for the primary value
-			sendEventBeacon( endpoint, eventType.slug, eventName );
+			sendEventBeacon( endpoint, trackedEvent.slug, eventName );
 		}
 	};
 }

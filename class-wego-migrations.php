@@ -26,6 +26,12 @@ class WeGo_Migrations {
 			self::migrate_v2_event_source_refactor();
 			update_option( self::OPTION_NAME_SCHEMA_VERSION, 2 );
 		}
+
+		// Starting with v2.3.0: Rename "event types" to "tracked events"
+		if ( $current_schema_version < 3 ) {
+			self::migrate_v3_rename_tracked_events();
+			update_option( self::OPTION_NAME_SCHEMA_VERSION, 3 );
+		}
 	}
 
 	/**
@@ -43,7 +49,7 @@ class WeGo_Migrations {
 	 * Create the default "Tel Clicks" event type in wego_event_types option
 	 */
 	private static function create_default_tel_clicks_event_type() {
-		$event_types = get_option( WeGo_Event_Type_Settings::OPTION_EVENT_TYPES, [] );
+		$event_types = get_option( 'wego_traffic_source_event_types', [] );
 
 		// Check if tel_clicks event type already exists
 		foreach ( $event_types as $event_type ) {
@@ -61,7 +67,7 @@ class WeGo_Migrations {
 			'active'              => true,
 		];
 
-		update_option( WeGo_Event_Type_Settings::OPTION_EVENT_TYPES, $event_types );
+		update_option( 'wego_traffic_source_event_types', $event_types );
 	}
 
 	/**
@@ -148,7 +154,7 @@ class WeGo_Migrations {
 	 * v2 Migration: Convert css_selectors string to event_source object structure
 	 */
 	private static function migrate_v2_event_source_refactor() {
-		$event_types = get_option( WeGo_Event_Type_Settings::OPTION_EVENT_TYPES, [] );
+		$event_types = get_option( 'wego_traffic_source_event_types', [] );
 
 		foreach ( $event_types as &$event_type ) {
 			// Check if this event type already has event_source structure (already migrated)
@@ -173,8 +179,28 @@ class WeGo_Migrations {
 			}
 		}
 
-		update_option( WeGo_Event_Type_Settings::OPTION_EVENT_TYPES, $event_types );
+		update_option( 'wego_traffic_source_event_types', $event_types );
 		error_log( 'WeGo Traffic Source: v2 migration completed. Processed ' . count( $event_types ) . ' event types.' );
+	}
+
+	/**
+	 * v3 Migration: Rename option from "event_types" to "tracked_events"
+	 *
+	 * Copies data from wego_traffic_source_event_types to wego_traffic_source_tracked_events
+	 * and deletes the old option.
+	 */
+	private static function migrate_v3_rename_tracked_events() {
+		$old_option = 'wego_traffic_source_event_types';
+		$new_option = 'wego_traffic_source_tracked_events';
+
+		$data = get_option( $old_option, [] );
+
+		if ( ! empty( $data ) ) {
+			update_option( $new_option, $data );
+		}
+
+		delete_option( $old_option );
+		error_log( 'WeGo Traffic Source: v3 migration completed. Renamed event_types option to tracked_events.' );
 	}
 
 }

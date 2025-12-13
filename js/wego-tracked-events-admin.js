@@ -9,9 +9,9 @@ let isDirty = false;
  * DOM References
  */
 const dom = {
-	tableBody: document.getElementById( 'wego-event-types-body' ),
-	addButton: document.getElementById( 'wego-add-event-type' ),
-	template: document.getElementById( 'wego-event-type-row-template' ),
+	tableBody: document.getElementById( 'wego-tracked-events-body' ),
+	addButton: document.getElementById( 'wego-add-tracked-event' ),
+	template: document.getElementById( 'wego-tracked-event-row-template' ),
 	form: document.querySelector( 'form' ),
 	eventSourceTemplates: {}
 };
@@ -114,14 +114,14 @@ function init() {
 
 function cacheEventSourceTemplates() {
 	// Cache all available event source templates from DOM
-	// This ensures templates are available regardless of active event types
-	const templates = document.querySelectorAll('template[id^="wego-event-source-"]');
+	// This ensures templates are available regardless of active tracked events
+	const templates = document.querySelectorAll( 'template[id^="wego-event-source-"]' );
 
-	templates.forEach(template => {
+	for ( const template of templates ) {
 		// Extract type from ID: "wego-event-source-link_click" → "link_click"
-		const eventSourceType = template.id.replace('wego-event-source-', '');
-		dom.eventSourceTemplates[eventSourceType] = template;
-	});
+		const eventSourceType = template.id.replace( 'wego-event-source-', '' );
+		dom.eventSourceTemplates[ eventSourceType ] = template;
+	}
 }
 
 function captureFormState() {
@@ -130,7 +130,9 @@ function captureFormState() {
 
 function initializeAllRows() {
 	const rows = dom.tableBody.querySelectorAll( 'tr:not(.wego-no-items)' );
-	rows.forEach( updateConfigFields );
+	for ( const row of rows ) {
+		updateConfigFields( row );
+	}
 }
 
 /**
@@ -238,11 +240,15 @@ function updateConfigFields( row ) {
 					attr.value = attr.value.replace( /\{\{INDEX\}\}/g, rowIndexAttr );
 				}
 				// Recursively process child nodes
-				element.childNodes.forEach( replacePlaceholders );
+				for ( const child of element.childNodes ) {
+					replacePlaceholders( child );
+				}
 			}
 		}
 
-		clonedContent.childNodes.forEach( replacePlaceholders );
+		for ( const child of clonedContent.childNodes ) {
+			replacePlaceholders( child );
+		}
 
 		// Append the cloned content
 		configContainer.appendChild( clonedContent );
@@ -268,11 +274,15 @@ function addRow() {
 				attr.value = attr.value.replace( /\{\{INDEX\}\}/g, rowIndex );
 			}
 			// Recursively process child nodes
-			element.childNodes.forEach( replacePlaceholders );
+			for ( const child of element.childNodes ) {
+				replacePlaceholders( child );
+			}
 		}
 	}
 
-	clonedContent.childNodes.forEach( replacePlaceholders );
+	for ( const child of clonedContent.childNodes ) {
+		replacePlaceholders( child );
+	}
 
 	// Append the cloned content
 	dom.tableBody.appendChild( clonedContent );

@@ -1,36 +1,42 @@
 /**
- * WeGo Event Types Admin - Settings page styles
+ * WeGo Tracked Events Admin - Settings page styles
  */
 
-#wego-event-types-table input[type="text"],
-#wego-event-types-table textarea,
-#wego-event-types-table select {
+#wego-tracked-events-table input[type="text"],
+#wego-tracked-events-table textarea,
+#wego-tracked-events-table select {
 	width: 100%;
 }
 
-#wego-event-types-table textarea {
+/** ToDo: Replace with something less fragile */
+#wego-tracked-events-table th:nth-child(6),
+#wego-tracked-events-table th:nth-child(7) {
+	text-align: center;
+}
+
+#wego-tracked-events-table textarea {
 	min-height: 60px;
 	font-family: monospace;
 	font-size: 12px;
 }
 
-#wego-event-types-table .wego-delete-row {
+#wego-tracked-events-table .wego-delete-row {
 	color: #b32d2e;
 	cursor: pointer;
 }
 
-#wego-event-types-table .wego-delete-row:hover {
+#wego-tracked-events-table .wego-delete-row:hover {
 	color: #a00;
 }
 
 /* WordPress standard form validation styles */
-#wego-event-types-table .form-invalid {
+#wego-tracked-events-table .form-invalid {
 	border-color: #dc3232 !important;
 	box-shadow: 0 0 2px rgba(220, 50, 50, 0.8);
 	background-color: #fef7f7;
 }
 
-#wego-event-types-table .form-required:after {
+#wego-tracked-events-table .form-required:after {
 	content: " *";
 	color: #dc3232;
 }
@@ -96,4 +102,12 @@
 	margin: 16px 0;
 	border: none;
 	border-top: 1px solid #dcdcde;
+}
+
+#wego-tracked-events-table th .dashicons-editor-help {
+	font-size: 18px;
+	color: #8c8f94;
+	margin-left: 4px;
+	display: inline-flex;
+	align-items: center;
 }
