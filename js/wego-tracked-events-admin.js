@@ -17,73 +17,173 @@ const dom = {
 };
 
 /**
- * Get the admin configuration from the JSON script element
- */
-function getAdminConfig() {
-	const configElement = document.querySelector( 'script.wego-admin-config' );
-	if ( ! configElement ) {
-		console.error( 'WeGo admin config not found' );
-		return null;
-	}
-	return JSON.parse( configElement.textContent );
-}
-
-/**
  * Validation handler mapping
+ *
+ * IMPORTANT: Each handler function contains its own complete, self-contained validation logic.
+ * Yes, there is duplication (particularly CSS selector validation across multiple handlers).
+ * This is intentional. We accept duplication over shared abstractions because:
+ *
+ * 1. Each event source has tight coupling to specific markup (textarea vs input, different container classes)
+ * 2. Validation requirements will likely diverge as event sources evolve
+ * 3. Past attempts at generalization (validation_type abstraction in 2.3.0) created fragile code
+ * 4. Self-contained handlers can evolve independently without side effects
+ *
+ * If duplication becomes problematic (e.g., fixing the same bug in 10 places), we can
+ * extract shared utilities later when patterns are truly stable. Premature extraction
+ * is harder to undo than late extraction.
  */
 const validationHandlers = {
-	css_selector: ( row ) => {
-		const selectorField = row.querySelector( 'textarea[name*="[event_source_selector]"]' );
-		const selectorValue = selectorField ? selectorField.value.trim() : '';
-		return {
-			validation: validateCSSSelector( selectorValue ),
-			field: selectorField
-		};
-	},
-	form_submit: ( row ) => {
-		const selectorField = row.querySelector( 'textarea[name*="[event_source_selector]"]' );
-		const selectorValue = selectorField ? selectorField.value.trim() : '';
-		return {
-			validation: validateCSSSelector( selectorValue ),
-			field: selectorField
-		};
-	},
-	podium_events: ( row ) => {
-		const validation = validatePodiumEvents( row );
-		const checkboxContainer = row.querySelector( '.wego-podium-checkboxes' );
-		return {
-			validation: validation,
-			field: checkboxContainer
-		};
-	}
+	link_click: validateLinkClick,
+	form_submit: validateFormSubmit,
+	podium_widget: validatePodiumWidget,
+	youtube_video: validateYouTubeVideo
 };
 
 /**
- * Build event source configuration from admin config
+ * Validate link click event source
  */
-function buildEventSourceConfig() {
-	const config = getAdminConfig();
-	if ( ! config || ! config.eventSourceTypes ) {
-		console.error( 'Invalid admin config' );
-		return {};
+function validateLinkClick( row ) {
+	const selectorField = row.querySelector( 'textarea[name*="[event_source_selector]"]' );
+	const selectorValue = selectorField ? selectorField.value.trim() : '';
+
+	if ( ! selectorValue || selectorValue === '' ) {
+		return {
+			validation: { valid: false, error: 'Selector cannot be empty' },
+			field: selectorField
+		};
 	}
 
-	const eventSourceConfig = {};
+	if ( selectorValue === 'a' ) {
+		return {
+			validation: { valid: false, error: 'Selector cannot be just "a". Please provide a more specific selector.' },
+			field: selectorField
+		};
+	}
 
-	for ( const [ type, meta ] of Object.entries( config.eventSourceTypes ) ) {
-		const handler = validationHandlers[ meta.validation_type ];
-		if ( handler ) {
-			eventSourceConfig[ type ] = { validate: handler };
+	try {
+		const selectors = selectorValue.split( ',' ).map( s => s.trim() ).filter( s => s );
+		for ( const singleSelector of selectors ) {
+			document.querySelectorAll( singleSelector );
 		}
+		return {
+			validation: { valid: true },
+			field: selectorField
+		};
+	} catch ( error ) {
+		return {
+			validation: { valid: false, error: 'Invalid CSS selector' },
+			field: selectorField
+		};
 	}
-
-	return eventSourceConfig;
 }
 
 /**
- * Event Source Configuration
+ * Validate form submit event source
  */
-const eventSourceConfig = buildEventSourceConfig();
+function validateFormSubmit( row ) {
+	const selectorField = row.querySelector( 'textarea[name*="[event_source_selector]"]' );
+	const selectorValue = selectorField ? selectorField.value.trim() : '';
+
+	if ( ! selectorValue || selectorValue === '' ) {
+		return {
+			validation: { valid: false, error: 'Selector cannot be empty' },
+			field: selectorField
+		};
+	}
+
+	if ( selectorValue === 'a' ) {
+		return {
+			validation: { valid: false, error: 'Selector cannot be just "a". Please provide a more specific selector.' },
+			field: selectorField
+		};
+	}
+
+	try {
+		const selectors = selectorValue.split( ',' ).map( s => s.trim() ).filter( s => s );
+		for ( const singleSelector of selectors ) {
+			document.querySelectorAll( singleSelector );
+		}
+		return {
+			validation: { valid: true },
+			field: selectorField
+		};
+	} catch ( error ) {
+		return {
+			validation: { valid: false, error: 'Invalid CSS selector' },
+			field: selectorField
+		};
+	}
+}
+
+/**
+ * Validate Podium widget event source
+ */
+function validatePodiumWidget( row ) {
+	const checkboxContainer = row.querySelector( '.wego-podium-checkboxes' );
+	const checkboxes = row.querySelectorAll( 'input[name*="[event_source_events]"]:checked' );
+
+	if ( checkboxes.length === 0 ) {
+		return {
+			validation: { valid: false, error: 'Please select at least one Podium event to track' },
+			field: checkboxContainer
+		};
+	}
+
+	return {
+		validation: { valid: true },
+		field: checkboxContainer
+	};
+}
+
+/**
+ * Validate YouTube video event source
+ */
+function validateYouTubeVideo( row ) {
+	const selectorField = row.querySelector( 'textarea[name*="[event_source_selector]"]' );
+	const selectorValue = selectorField ? selectorField.value.trim() : '';
+	const checkboxes = row.querySelectorAll( 'input[name*="[event_source_states]"]:checked' );
+	const checkboxContainer = row.querySelector( '.wego-youtube-checkboxes' );
+
+	// Validate CSS selector
+	if ( ! selectorValue || selectorValue === '' ) {
+		return {
+			validation: { valid: false, error: 'Selector cannot be empty' },
+			field: selectorField
+		};
+	}
+
+	if ( selectorValue === 'a' ) {
+		return {
+			validation: { valid: false, error: 'Selector cannot be just "a". Please provide a more specific selector.' },
+			field: selectorField
+		};
+	}
+
+	try {
+		const selectors = selectorValue.split( ',' ).map( s => s.trim() ).filter( s => s );
+		for ( const singleSelector of selectors ) {
+			document.querySelectorAll( singleSelector );
+		}
+	} catch ( error ) {
+		return {
+			validation: { valid: false, error: 'Invalid CSS selector' },
+			field: selectorField
+		};
+	}
+
+	// Validate at least one state selected
+	if ( checkboxes.length === 0 ) {
+		return {
+			validation: { valid: false, error: 'Please select at least one video state to track' },
+			field: checkboxContainer
+		};
+	}
+
+	return {
+		validation: { valid: true },
+		field: selectorField
+	};
+}
 
 // ========== Core Setup & Execution ==========
 
@@ -133,51 +233,6 @@ function initializeAllRows() {
 	for ( const row of rows ) {
 		updateConfigFields( row );
 	}
-}
-
-/**
- * Validation
- */
-
-/**
- * Validate CSS selector syntax
- */
-function validateCSSSelector( selector ) {
-	if ( ! selector || selector.trim() === '' ) {
-		return { valid: false, error: 'Selector cannot be empty' };
-	}
-
-	const trimmedSelector = selector.trim();
-
-	if ( trimmedSelector === 'a' ) {
-		return { valid: false, error: 'Selector cannot be just "a". Please provide a more specific selector.' };
-	}
-
-	try {
-		const selectors = trimmedSelector.split( ',' ).map( s => s.trim() ).filter( s => s );
-
-		for ( const singleSelector of selectors ) {
-			document.querySelectorAll( singleSelector );
-		}
-
-		return { valid: true };
-	} catch ( error ) {
-		return {
-			valid: false,
-			error: 'Invalid CSS selector'
-		};
-	}
-}
-
-/**
- * Validate Podium event checkboxes
- */
-function validatePodiumEvents( row ) {
-	const checkboxes = row.querySelectorAll( 'input[name*="[event_source_events]"]:checked' );
-	if ( checkboxes.length === 0 ) {
-		return { valid: false, error: 'Please select at least one Podium event to track' };
-	}
-	return { valid: true };
 }
 
 /**
@@ -330,10 +385,10 @@ function handleFormSubmit( e ) {
 
 		const eventName = nameField.value.trim();
 		const eventType = typeSelect ? typeSelect.value : 'link_click';
-		const config = eventSourceConfig[ eventType ];
+		const validator = validationHandlers[ eventType ];
 
-		if ( config && config.validate ) {
-			const result = config.validate( row );
+		if ( validator ) {
+			const result = validator( row );
 			const validation = result.validation;
 			const field = result.field;
 

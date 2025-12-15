@@ -21,30 +21,13 @@ class WeGo_Tracked_Event_Settings {
 	 * Transient keys
 	 */
 	const TRANSIENT_TRACKED_EVENTS_ERRORS = 'wego_tracked_events_errors';
+	const TRANSIENT_TRACKED_EVENTS_ATTEMPTED = 'wego_tracked_events_attempted';
 
 	/**
 	 * Error codes
 	 */
-	const ERROR_INVALID_CSS_SELECTOR = 'invalid_css_selector';
-	const ERROR_NO_PODIUM_EVENTS = 'no_podium_events';
-	const ERROR_INVALID_PODIUM_EVENT = 'invalid_podium_event';
 	const ERROR_UNKNOWN_EVENT_SOURCE_TYPE = 'unknown_event_source_type';
 	const ERROR_MULTIPLE_PODIUM_TYPES = 'multiple_podium_types';
-
-	/**
-	 * Get event source type metadata for admin configuration
-	 *
-	 * @return array Event source type metadata
-	 */
-	public static function get_event_source_types_metadata() {
-		$metadata = [];
-		foreach ( WeGo_Event_Source_Registry::get_all() as $event_source ) {
-			$metadata[ $event_source->get_type() ] = [
-				'label' => $event_source->get_label(),
-			];
-		}
-		return $metadata;
-	}
 
 	/**
 	 * Initialize the settings page
@@ -72,7 +55,14 @@ class WeGo_Tracked_Event_Settings {
 	 * Render the settings page
 	 */
 	public static function render_settings_page() {
-		$tracked_events = self::get_tracked_events();
+		// Check for attempted input from failed validation, otherwise load saved data
+		$attempted_events = get_transient( self::TRANSIENT_TRACKED_EVENTS_ATTEMPTED );
+		if ( $attempted_events !== false ) {
+			$tracked_events = $attempted_events;
+			delete_transient( self::TRANSIENT_TRACKED_EVENTS_ATTEMPTED );
+		} else {
+			$tracked_events = self::get_tracked_events();
+		}
 		?>
 		<div class="wrap">
 			<h1><?= esc_html__( 'Tracked Events', 'wego-traffic-source' ); ?></h1>
@@ -103,28 +93,28 @@ class WeGo_Tracked_Event_Settings {
 				<table class="wp-list-table widefat fixed striped" id="wego-tracked-events-table">
 					<thead>
 						<tr>
-							<th style="width: 18%;">
+							<th class="col-name">
 								<?= esc_html__( 'Name', 'wego-traffic-source' ); ?>
 								<span class="dashicons dashicons-editor-help" title="<?= esc_attr__( 'Display name for this tracked event. Becomes the submenu title under WeGo Tracking.', 'wego-traffic-source' ); ?>" aria-label="<?= esc_attr__( 'Display name for this tracked event. Becomes the submenu title under WeGo Tracking.', 'wego-traffic-source' ); ?>" role="img"></span>
 							</th>
-							<th style="width: 12%;">
+							<th class="col-slug">
 								<?= esc_html__( 'Slug', 'wego-traffic-source' ); ?>
 								<span class="dashicons dashicons-editor-help" title="<?= esc_attr__( 'Unique identifier for the event (maximum 15 characters). Auto-generated from Name if left blank.', 'wego-traffic-source' ); ?>" aria-label="<?= esc_attr__( 'Unique identifier for the event (maximum 15 characters). Auto-generated from Name if left blank.', 'wego-traffic-source' ); ?>" role="img"></span>
 							</th>
-							<th style="width: 15%;">
+							<th class="col-primary-label">
 								<?= esc_html__( 'Primary Value Label', 'wego-traffic-source' ); ?>
 								<span class="dashicons dashicons-editor-help" title="<?= esc_attr__( 'Column header label for the data list. Example: Phone Number for tel clicks, Video Title for YouTube events.', 'wego-traffic-source' ); ?>" aria-label="<?= esc_attr__( 'Column header label for the data list. Example: Phone Number for tel clicks, Video Title for YouTube events.', 'wego-traffic-source' ); ?>" role="img"></span>
 							</th>
-							<th style="width: 12%;">
+							<th class="col-event-source-type">
 								<?= esc_html__( 'Event Source Type', 'wego-traffic-source' ); ?>
 								<span class="dashicons dashicons-editor-help" title="<?= esc_attr__( 'What triggers this event (link clicks, form submissions, video interactions, etc.).', 'wego-traffic-source' ); ?>" aria-label="<?= esc_attr__( 'What triggers this event (link clicks, form submissions, video interactions, etc.).', 'wego-traffic-source' ); ?>" role="img"></span>
 							</th>
-							<th style="width: 28%;">
+							<th class="col-targets">
 								<?= esc_html__( 'Event Source Target(s)', 'wego-traffic-source' ); ?>
 								<span class="dashicons dashicons-editor-help" title="<?= esc_attr__( 'Configuration specific to this event source type.', 'wego-traffic-source' ); ?>" aria-label="<?= esc_attr__( 'Configuration specific to this event source type.', 'wego-traffic-source' ); ?>" role="img"></span>
 							</th>
-							<th style="width: 8%; text-align: center;">Active</th>
-							<th style="width: 7%; text-align: center;">Delete</th>
+							<th class="col-active">Active</th>
+							<th class="col-delete">Delete</th>
 						</tr>
 					</thead>
 					<tbody id="wego-tracked-events-body" data-row-index="<?= esc_attr( count( $tracked_events ) ); ?>">
@@ -140,30 +130,26 @@ class WeGo_Tracked_Event_Settings {
 					</tbody>
 				</table>
 
-				<p style="margin-top: 15px;">
-					<button type="button" class="button" id="wego-add-tracked-event">
-						<?= esc_html__( 'Add Tracked Event', 'wego-traffic-source' ); ?>
-					</button>
-				</p>
-
-				<?php submit_button( __( 'Save Tracked Events', 'wego-traffic-source' ) ); ?>
+			<p class="wego-add-tracked-event-wrapper">
+				<button type="button" class="button" id="wego-add-tracked-event">
+					<?= esc_html__( 'Add Tracked Event', 'wego-traffic-source' ); ?>
+				</button>
+			</p>				<?php submit_button( __( 'Save Tracked Events', 'wego-traffic-source' ) ); ?>
 			</form>
 
-			<div class="wego-help-section" style="background: #fff; border: 1px solid #c3c4c7; border-left: 4px solid #2271b1; padding: 12px 16px; margin: 15px 0; max-width: 900px;">
-				<p style="margin-top: 0;"><strong>Link Click CSS Selector Examples:</strong></p>
-				<ul style="margin: 0 0 12px 20px; list-style: disc;">
-					<li><code>a.schedule-button</code> â€” Links with a specific class</li>
-					<li><code>a#booking-link</code> â€” Link with a specific ID</li>
-					<li><code>a.this, a.or-that</code> â€” Multiple selectors, comma-separated</li>
-					<li><code>a[href*="calendly.com"]</code> â€” href contains "calendly.com"</li>
-					<li><code>a[href^="https://booking.example.com"]</code> â€” href begins with string</li>
-					<li><code>a[href$=".pdf"]</code> â€” href ends with string (e.g., PDF files)</li>
-				</ul>
-				<p style="margin: 12px 0 0 0;">
-					<a href="https://vsdentalcollege.edu.in/static/media/css.1a50a159.pdf" target="_blank" rel="noopener noreferrer">
-						CSS Selector Cheat Sheet â†—
-					</a>
-				</p>
+		<div class="wego-help-section">
+			<p><strong>Link Click CSS Selector Examples:</strong></p>
+			<ul>
+				<li><code>a.schedule-button</code> &mdash; Links with a specific class</li>
+				<li><code>a#booking-link</code> &mdash; Link with a specific ID</li>
+				<li><code>a.this, a.or-that</code> &mdash; Multiple selectors, comma-separated</li>
+				<li><code>a[href*="calendly.com"]</code> &mdash; href contains "calendly.com"</li>
+				<li><code>a[href^="https://booking.example.com"]</code> &mdash; href begins with string</li>
+				<li><code>a[href$=".pdf"]</code> &mdash; href ends with string (e.g., PDF files)</li>
+			</ul>
+				<a href="https://vsdentalcollege.edu.in/static/media/css.1a50a159.pdf" target="_blank" rel="noopener noreferrer">
+					CSS Selector Cheat Sheet
+				</a>
 			</div>
 		</div>
 
@@ -199,26 +185,14 @@ class WeGo_Tracked_Event_Settings {
 		$primary_label = isset( $tracked_event['primary_value_label'] ) ? $tracked_event['primary_value_label'] : '';
 		$active = isset( $tracked_event['active'] ) ? $tracked_event['active'] : false;
 
-		// Extract event_source data (handle both new and legacy formats)
+		// Determine event source type from tracked event config
 		$event_source_type = 'link_click'; // Default
-		$link_selector = '';
-		$podium_events = []; // Array of selected events
-
 		if ( isset( $tracked_event['event_source'] ) && is_array( $tracked_event['event_source'] ) ) {
-			// New format
 			$event_source_type = $tracked_event['event_source']['type'];
-			if ( $event_source_type === 'link_click' ) {
-				$link_selector = isset( $tracked_event['event_source']['selector'] ) ? $tracked_event['event_source']['selector'] : '';
-			} elseif ( $event_source_type === 'podium_widget' ) {
-				$podium_events = isset( $tracked_event['event_source']['events'] ) ? $tracked_event['event_source']['events'] : [];
-			}
 		} elseif ( isset( $tracked_event['css_selectors'] ) ) {
 			// Legacy format (pre-migration)
 			$event_source_type = 'link_click';
-			$link_selector = $tracked_event['css_selectors'];
 		}
-
-		$all_podium_events = [ 'Bubble Clicked', 'Conversation Started', 'Widget Closed' ];
 		?>
 		<tr data-row-index="<?= esc_attr( $index ); ?>">
 			<td>
@@ -256,15 +230,15 @@ class WeGo_Tracked_Event_Settings {
 			<td class="wego-config-container">
 				<?php self::render_event_source_config( $index, $event_source_type, $tracked_event ); ?>
 			</td>
-			<td style="text-align: center;">
-				<input type="checkbox"
-					name="tracked_events[<?= esc_attr( $index ); ?>][active]"
-					value="1"
-					<?php checked( $active ); ?>>
-			</td>
-			<td style="text-align: center;">
-				<span class="dashicons dashicons-trash wego-delete-row" title="<?= esc_attr__( 'Delete', 'wego-traffic-source' ); ?>"></span>
-			</td>
+		<td class="wego-center-cell">
+			<input type="checkbox"
+				name="tracked_events[<?= esc_attr( $index ); ?>][active]"
+				value="1"
+				<?php checked( $active ); ?>>
+		</td>
+		<td class="wego-center-cell">
+			<span class="dashicons dashicons-trash wego-delete-row" title="<?= esc_attr__( 'Delete', 'wego-traffic-source' ); ?>"></span>
+		</td>
 		</tr>
 		<?php
 	}
@@ -368,6 +342,10 @@ class WeGo_Tracked_Event_Settings {
 	}		// If there were validation errors, redirect back with error messages
 		if ( ! empty( $errors ) ) {
 			set_transient( self::TRANSIENT_TRACKED_EVENTS_ERRORS, $errors, 30 );
+			// Store the attempted input to preserve unsaved rows
+			if ( isset( $_POST['tracked_events'] ) ) {
+				set_transient( self::TRANSIENT_TRACKED_EVENTS_ATTEMPTED, map_deep( wp_unslash( $_POST['tracked_events'] ), 'sanitize_text_field' ), 30 );
+			}
 			wp_redirect( admin_url( 'admin.php?page=' . self::PAGE_SLUG . '&error=1' ) );
 			exit;
 		}

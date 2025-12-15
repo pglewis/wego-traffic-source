@@ -18,6 +18,7 @@ class WeGo_Dynamic_Event_Post_Type {
 	const COLUMN_PAGE_URL = 'page_url';
 	const COLUMN_BROWSER_FAMILY = 'browser_family';
 	const COLUMN_OS_FAMILY = 'os_family';
+	const COLUMN_EVENT_SOURCE_DATA = 'event_source_data';
 
 	/**
 	 * Filter parameter names
@@ -623,6 +624,24 @@ class WeGo_Dynamic_Event_Post_Type {
 			<input type="text" id="wego_page_url" name="wego_page_url" value="<?= esc_attr( $page_url ); ?>" style="width: 100%;" readonly>
 		</p>
 		<?php
+		$event_source_data = get_post_meta( $post->ID, self::COLUMN_EVENT_SOURCE_DATA, true );
+		if ( ! empty( $event_source_data ) ) :
+			?>
+			<p>
+				<label><?= esc_html__( 'Event Source Data:', 'wego-traffic-source' ); ?></label>
+				<table style="width: 100%; border-collapse: collapse; margin-top: 5px;">
+					<?php foreach ( $event_source_data as $key => $value ) : ?>
+						<tr style="border-bottom: 1px solid #ddd;">
+							<td style="padding: 5px; font-weight: 600; width: 30%;"><?= esc_html( ucwords( str_replace( '_', ' ', $key ) ) ); ?>:</td>
+							<td style="padding: 5px;"><?= esc_html( $value ); ?></td>
+						</tr>
+					<?php endforeach; ?>
+				</table>
+			</p>
+			<?php
+		endif;
+		?>
+		<?php
 	}
 
 	/**
@@ -791,10 +810,23 @@ class WeGo_Dynamic_Event_Post_Type {
 
 		$query = new WP_Query( $args );
 
+		// Discover all unique event_source_data keys from the query results
+		$event_data_keys = [];
+		if ( $query->have_posts() ) {
+			foreach ( $query->posts as $post ) {
+				$event_source_data = get_post_meta( $post->ID, self::COLUMN_EVENT_SOURCE_DATA, true );
+				if ( is_array( $event_source_data ) ) {
+					$event_data_keys = array_merge( $event_data_keys, array_keys( $event_source_data ) );
+				}
+			}
+			$event_data_keys = array_unique( $event_data_keys );
+			sort( $event_data_keys );
+		}
+
 		// Set headers for CSV download
 		$filename = sanitize_file_name( $this->event_type_config['slug'] ) . '-' . wp_date( 'Y-m-d' ) . '.csv';
 		header( 'Content-Type: text/csv; charset=utf-8' );
-		header( 'Content-Disposition: attachment; filename=' . $filename );
+		header( 'Content-Disposition: attachment; filename="' . $filename . '"' );
 		header( 'Pragma: no-cache' );
 		header( 'Expires: 0' );
 
@@ -804,13 +836,13 @@ class WeGo_Dynamic_Event_Post_Type {
 		// Add UTF-8 BOM for proper Excel compatibility
 		fprintf( $output, chr( 0xEF ) . chr( 0xBB ) . chr( 0xBF ) );
 
-		// Write CSV headers
+		// Build CSV headers: standard columns + dynamic event_source_data columns
 		$primary_label = $this->event_type_config['primary_value_label'];
 		if ( empty( $primary_label ) ) {
 			$primary_label = __( 'Primary Value', 'wego-traffic-source' );
 		}
 
-		fputcsv( $output, [
+		$headers = [
 			$primary_label,
 			__( 'Page URL', 'wego-traffic-source' ),
 			__( 'Traffic Source', 'wego-traffic-source' ),
@@ -818,7 +850,14 @@ class WeGo_Dynamic_Event_Post_Type {
 			__( 'Browser', 'wego-traffic-source' ),
 			__( 'Operating System', 'wego-traffic-source' ),
 			__( 'Date/Time', 'wego-traffic-source' ),
-		] );
+		];
+
+		// Add dynamic columns for event_source_data
+		foreach ( $event_data_keys as $key ) {
+			$headers[] = ucwords( str_replace( '_', ' ', $key ) );
+		}
+
+		fputcsv( $output, $headers );
 
 		// Write data rows
 		if ( $query->have_posts() ) {
@@ -836,7 +875,7 @@ class WeGo_Dynamic_Event_Post_Type {
 				$os_family = get_post_meta( $post_id, self::COLUMN_OS_FAMILY, true );
 				$page_url = get_post_meta( $post_id, self::COLUMN_PAGE_URL, true );
 
-				fputcsv( $output, [
+				$row = [
 					$primary_value,
 					$page_url ? $page_url : '',
 					$traffic_source ? $traffic_source : '',
@@ -844,7 +883,15 @@ class WeGo_Dynamic_Event_Post_Type {
 					$browser_family ? $browser_family : '',
 					$os_family ? $os_family : '',
 					$formatted_date_time,
-				] );
+				];
+
+				// Add dynamic event_source_data values
+				$event_source_data = get_post_meta( $post_id, self::COLUMN_EVENT_SOURCE_DATA, true );
+				foreach ( $event_data_keys as $key ) {
+					$row[] = isset( $event_source_data[ $key ] ) ? $event_source_data[ $key ] : '';
+				}
+
+				fputcsv( $output, $row );
 			}
 		}
 

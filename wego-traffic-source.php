@@ -2,7 +2,7 @@
 /*
 Plugin Name: WeGo Traffic Source
 Description: Auto-fills traffic source form fields and tracks configurable click events (tel links, booking links, etc.)
-Version: 2.3.0
+Version: 2.3.1
 Requires at least: 6.5
 Requires PHP: 7.4
 Author: WeGo Unlimited
@@ -32,6 +32,7 @@ require_once __DIR__ . '/event-sources/class-wego-event-source-registry.php';
 require_once __DIR__ . '/event-sources/class-wego-event-source-link-click.php';
 require_once __DIR__ . '/event-sources/class-wego-event-source-form-submit.php';
 require_once __DIR__ . '/event-sources/class-wego-event-source-podium-widget.php';
+require_once __DIR__ . '/event-sources/class-wego-event-source-youtube.php';
 
 /**
  * Register event source types
@@ -40,6 +41,7 @@ $wego_event_source_classes = [
 	WeGo_Event_Source_Link_Click::class,
 	WeGo_Event_Source_Form_Submit::class,
 	WeGo_Event_Source_Podium_Widget::class,
+	WeGo_Event_Source_YouTube::class,
 ];
 foreach ( $wego_event_source_classes as $class ) {
 	WeGo_Event_Source_Registry::register( $class );
@@ -123,9 +125,6 @@ class WeGo_Traffic_Source {
 			[],
 			self::$plugin_version
 		);
-
-		// Output admin config for tracked event validation
-		self::output_admin_config();
 	}
 
 	/**
@@ -186,26 +185,11 @@ class WeGo_Traffic_Source {
 	}
 
 	/**
-	 * Output inline JSON config for admin tracked event management
-	 */
-	public static function output_admin_config() {
-		$event_source_types = WeGo_Tracked_Event_Settings::get_event_source_types_metadata();
-
-		$config = [
-			'eventSourceTypes' => $event_source_types,
-		];
-
-		wp_print_inline_script_tag(
-			wp_json_encode( $config ),
-			[
-				'type'  => 'application/json',
-				'class' => 'wego-admin-config',
-			]
-		);
-	}
-
-	/**
 	 * Log dynamic event with traffic source tracking
+	 *
+	 * Note: REST API parameters use snake_case (not camelCase). This is standard REST API
+	 * best practice, matching WordPress conventions. The client (JavaScript) uses camelCase
+	 * internally and converts to snake_case when building the payload.
 	 */
 	public static function log_event( $request ) {
 		$event_type = sanitize_key( $request->get_param( 'event_type' ) );
@@ -215,6 +199,7 @@ class WeGo_Traffic_Source {
 		$page_url = esc_url_raw( $request->get_param( 'page_url' ) );
 		$browser_family = sanitize_text_field( $request->get_param( 'browser_family' ) );
 		$os_family = sanitize_text_field( $request->get_param( 'os_family' ) );
+		$event_source_data = $request->get_param( 'event_source_data' );
 
 		// Validate required fields
 		if ( empty( $event_type ) || empty( $primary_value ) ) {
@@ -247,18 +232,26 @@ class WeGo_Traffic_Source {
 		// Build the CPT slug (wego_ prefix + event slug)
 		$post_type = 'wego_' . $event_type;
 
+		// Build meta_input array
+		$meta_input = [
+			WeGo_Dynamic_Event_Post_Type::COLUMN_TRAFFIC_SOURCE => $traffic_source,
+			WeGo_Dynamic_Event_Post_Type::COLUMN_DEVICE_TYPE    => $device_type,
+			WeGo_Dynamic_Event_Post_Type::COLUMN_PAGE_URL       => $page_url,
+			WeGo_Dynamic_Event_Post_Type::COLUMN_BROWSER_FAMILY => $browser_family,
+			WeGo_Dynamic_Event_Post_Type::COLUMN_OS_FAMILY      => $os_family,
+		];
+
+		// Add event_source_data if provided
+		if ( ! empty( $event_source_data ) ) {
+			$meta_input[ WeGo_Dynamic_Event_Post_Type::COLUMN_EVENT_SOURCE_DATA ] = $event_source_data;
+		}
+
 		// Create new post
 		$post_id = wp_insert_post( [
 			'post_type'   => $post_type,
 			'post_title'  => $primary_value,
 			'post_status' => 'publish',
-			'meta_input'  => [
-				WeGo_Dynamic_Event_Post_Type::COLUMN_TRAFFIC_SOURCE => $traffic_source,
-				WeGo_Dynamic_Event_Post_Type::COLUMN_DEVICE_TYPE    => $device_type,
-				WeGo_Dynamic_Event_Post_Type::COLUMN_PAGE_URL       => $page_url,
-				WeGo_Dynamic_Event_Post_Type::COLUMN_BROWSER_FAMILY => $browser_family,
-				WeGo_Dynamic_Event_Post_Type::COLUMN_OS_FAMILY      => $os_family,
-			],
+			'meta_input'  => $meta_input,
 		] );
 
 		if ( is_wp_error( $post_id ) ) {

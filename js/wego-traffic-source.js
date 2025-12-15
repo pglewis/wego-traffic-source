@@ -2,18 +2,32 @@
  * Configuration object for WeGo tracking system.
  * Injected into page as <script type="application/json" class="wego-tracking-config">
  *
- * @typedef {Object} TrackingConfig
+ * @typedef {Object} WeGoTrackingConfig
  * @property {string} endpoint - REST API URL where event data is sent via sendBeacon
- * @property {TrackedEvent[]} trackedEvents - Array of tracked event definitions
+ * @property {WeGoTrackedEvent[]} trackedEvents - Array of tracked event definitions
  *
- * @typedef {Object} TrackedEvent
+ * @typedef {Object} WeGoTrackedEvent
  * @property {string} slug - Tracked event identifier, sent to API as event_type
- * @property {EventSource} eventSource - Event source configuration
+ * @property {WeGoEventSource} eventSource - Event source configuration
  *
- * @typedef {Object} EventSource
- * @property {string} type - Type of event source ('link_click', 'form_submit', or 'podium_widget')
- * @property {string} [selector] - CSS selector for link_click and form_submit events
- * @property {string[]} [events] - Array of Podium event names for podium_widget events
+ * @typedef {Object} WeGoLinkClickSource
+ * @property {'link_click'} type - Event source type
+ * @property {string} selector - CSS selector for link click events
+ *
+ * @typedef {Object} WeGoFormSubmitSource
+ * @property {'form_submit'} type - Event source type
+ * @property {string} selector - CSS selector for form submit events
+ *
+ * @typedef {Object} WeGoPodiumWidgetSource
+ * @property {'podium_widget'} type - Event source type
+ * @property {string[]} events - Array of Podium event names
+ *
+ * @typedef {Object} WeGoYouTubeVideoSource
+ * @property {'youtube_video'} type - Event source type
+ * @property {string} selector - CSS selector for YouTube iframes
+ * @property {string[]} states - Array of YouTube video states
+ *
+ * @typedef {WeGoLinkClickSource | WeGoFormSubmitSource | WeGoPodiumWidgetSource | WeGoYouTubeVideoSource} WeGoEventSource
  *
  * @example
  * {
@@ -49,11 +63,12 @@ const STORAGE_KEY_UTM = 'wego_utm';
 const STORAGE_KEY_REFERRER = 'wego_referrer';
 
 // Event source type constants
-// IMPORTANT: These values intentionally duplicate the PHP constants in WeGo_Tracked_Event_Settings.
-// Dynamic generation was rejected to preserve browser/CDN caching. Keep these in sync with PHP.
+// IMPORTANT: These values must match the string values returned by PHP event
+// source classes (get_type()).
 const EVENT_SOURCE_TYPE_LINK_CLICK = 'link_click';
 const EVENT_SOURCE_TYPE_FORM_SUBMIT = 'form_submit';
 const EVENT_SOURCE_TYPE_PODIUM_WIDGET = 'podium_widget';
+const EVENT_SOURCE_TYPE_YOUTUBE_VIDEO = 'youtube_video';
 
 const FORM_FIELD_TARGET_VALUE = 'wego-traffic-source';
 const SELECTOR_CONFIG_DATA_SCRIPT = 'script.wego-tracking-config';
@@ -69,7 +84,7 @@ populateFormFields();
  * Validate and type-narrow the raw config object
  *
  * @param {any} rawConfig - The parsed JSON config
- * @returns {TrackingConfig|null} Validated config or null if invalid
+ * @returns {WeGoTrackingConfig|null} Validated config or null if invalid
  */
 function validateTrackingConfig( rawConfig ) {
 	if ( !rawConfig || typeof rawConfig !== 'object' ) {
@@ -83,7 +98,7 @@ function validateTrackingConfig( rawConfig ) {
 	}
 
 	// Basic validation passed, return as typed config
-	return /** @type {TrackingConfig} */ ( rawConfig );
+	return /** @type {WeGoTrackingConfig} */ ( rawConfig );
 }
 
 /**
@@ -126,6 +141,10 @@ function setupEventTracking() {
 			case EVENT_SOURCE_TYPE_PODIUM_WIDGET:
 				setupPodiumEventTracking( trackedEvent, config.endpoint );
 				break;
+
+			case EVENT_SOURCE_TYPE_YOUTUBE_VIDEO:
+				setupYouTubeEventTracking( trackedEvent, config.endpoint );
+				break;
 		}
 	}
 }
@@ -135,16 +154,22 @@ function setupEventTracking() {
 /**
  * Set up click tracking for link-based events
  *
- * @param {TrackedEvent} trackedEvent - The tracked event configuration
+ * @param {WeGoTrackedEvent} trackedEvent - The tracked event configuration
  * @param {string} endpoint - The REST API endpoint URL
  */
 function setupLinkClickTracking( trackedEvent, endpoint ) {
+	// Check if there are any links matching the selector
+	const links = validateSelectorAll(trackedEvent.eventSource.selector, trackedEvent.slug);
+	if (!links.length) {
+		// No matching targets, nothing to track
+		return;
+	}
+
 	document.addEventListener( 'click', ( e ) => {
-		const target = e.target.closest( trackedEvent.eventSource.selector );
+		const target = validateClosest(e.target, trackedEvent.eventSource.selector, trackedEvent.slug);
 		if ( !target || !target.hasAttribute( 'href' ) ) {
 			return;
 		}
-
 		// href is the primary value for link click events
 		sendEventBeacon( endpoint, trackedEvent.slug, target.getAttribute( 'href' ) );
 	} );
@@ -153,19 +178,24 @@ function setupLinkClickTracking( trackedEvent, endpoint ) {
 /**
  * Set up tracking for form submission events
  *
- * @param {TrackedEvent} trackedEvent - The form submit tracked event configuration
+ * @param {WeGoTrackedEvent} trackedEvent - The form submit tracked event configuration
  * @param {string} endpoint - The REST API endpoint URL
  */
 function setupFormSubmitTracking( trackedEvent, endpoint ) {
+	// Check if there are any forms matching the selector
+	const forms = validateSelectorAll(trackedEvent.eventSource.selector, trackedEvent.slug);
+	if (!forms.length) {
+		// No matching targets, nothing to track
+		return;
+	}
+
 	document.addEventListener( 'submit', ( e ) => {
-		const form = e.target.closest( trackedEvent.eventSource.selector );
+		const form = validateClosest(e.target, trackedEvent.eventSource.selector, trackedEvent.slug);
 		if ( !form ) {
 			return;
 		}
-
 		// Use form ID, action URL, or fallback to 'unknown-form'
 		const primaryValue = form.id || form.action || 'unknown-form';
-
 		sendEventBeacon( endpoint, trackedEvent.slug, primaryValue );
 	} );
 }
@@ -173,12 +203,22 @@ function setupFormSubmitTracking( trackedEvent, endpoint ) {
 /**
  * Set up tracking for Podium widget events
  *
- * @param {TrackedEvent} trackedEvent - The Podium tracked event configuration
+ * @param {WeGoTrackedEvent} trackedEvent - The Podium tracked event configuration
  * @param {string} endpoint - The REST API endpoint URL
  */
 function setupPodiumEventTracking( trackedEvent, endpoint ) {
+	// Validate that we have events to track
+	if ( !trackedEvent.eventSource.events || !Array.isArray( trackedEvent.eventSource.events ) ) {
+		return;
+	}
+
 	/**
 	 * Podium widget event callback
+	 *
+	 * Note: There's no real use case for more than a single Podium tracked
+	 * event so we assume should never be more than one and blindly overwrite
+	 * any previous PodiumEventsCallback instance.
+	 *
 	 * @param {string} eventName - The Podium event name that triggered
 	 * @param {any} properties - Additional event properties from Podium
 	 */
@@ -190,6 +230,132 @@ function setupPodiumEventTracking( trackedEvent, endpoint ) {
 	};
 }
 
+/**
+ * Set up tracking for YouTube video events
+ *
+ * @param {WeGoTrackedEvent} trackedEvent - The YouTube tracked event configuration
+ * @param {string} endpoint - The REST API endpoint URL
+ */
+function setupYouTubeEventTracking( trackedEvent, endpoint ) {
+	   // Validate that we have states to track
+	   if ( !trackedEvent.eventSource.states || !Array.isArray( trackedEvent.eventSource.states ) ) {
+		   return;
+	   }
+	   // YouTube player state constants
+	   const YT_STATE_ENDED = 0;
+	   const YT_STATE_PLAYING = 1;
+	   const YT_STATE_PAUSED = 2;
+	   const YT_STATE_BUFFERING = 3;
+
+	   // Map state numbers to display-ready state names (matching PHP canonical values)
+	   const stateMap = {
+		   [YT_STATE_PLAYING]: 'Playing',
+		   [YT_STATE_PAUSED]: 'Paused',
+		   [YT_STATE_ENDED]: 'Ended',
+		   [YT_STATE_BUFFERING]: 'Buffering',
+	   };
+
+	// Look for iframes that match the selector
+	const iframes = validateSelectorAll(trackedEvent.eventSource.selector, trackedEvent.slug);
+	if (!iframes.length) {
+		// No matching targets, nothing to track
+		return;
+	}
+
+	// Start the loading process only if we have targets
+	loadYouTubeAPI(iframes);
+
+	/**
+	 * Load YouTube IFrame API if not already loaded
+	 */
+	function loadYouTubeAPI(iframes) {
+		// Check if API is already loaded
+		if (typeof window.YT !== 'undefined' && typeof window.YT.Player === 'function') {
+			initializePlayers(iframes);
+			return;
+		}
+
+		// Set up callback for when API loads
+		window.onYouTubeIframeAPIReady = function() {
+			initializePlayers(iframes);
+		};
+
+		// Inject YouTube IFrame API script
+		const tag = document.createElement('script');
+		tag.src = 'https://www.youtube.com/iframe_api';
+		const firstScriptTag = document.getElementsByTagName('script')[0];
+		firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
+	}
+
+	/**
+	 * Initialize YouTube players after API is ready
+	 */
+	function initializePlayers(iframes) {
+		for ( const iframe of iframes ) {
+			// Skip if already initialized
+			if ( iframe.dataset.wegoYtInitialized ) {
+				continue;
+			}
+
+			// Mark as initialized
+			iframe.dataset.wegoYtInitialized = 'true';
+
+			// Ensure iframe has enablejsapi=1 parameter
+			if ( iframe.src && ! iframe.src.includes( 'enablejsapi=1' ) ) {
+				const url = new URL( iframe.src );
+				url.searchParams.set( 'enablejsapi', '1' );
+				iframe.src = url.toString();
+			}
+
+			// Ensure iframe has an ID for the YT.Player API
+			if ( ! iframe.id ) {
+				iframe.id = 'wego-yt-' + Math.random().toString( 36 ).substring( 2, 11 );
+			}
+
+			   // Create YT.Player instance
+			   new window.YT.Player( iframe.id, {
+				   events: {
+					   onStateChange: ( event ) => {
+						// ToDo: Probably should check the key exists for safety
+						const stateKey = stateMap[ event.data ];
+
+						   // Only track if this state is configured
+						if ( ! stateKey || ! trackedEvent.eventSource.states.includes( stateKey ) ) {
+							   return;
+						   }
+
+						   // Get video information
+						   const player = event.target;
+						   const videoData = player.getVideoData();
+						   const videoId = videoData.video_id || '';
+						   const videoTitle = videoData.title || 'Unknown Video';
+						   const videoUrl = videoId ? `https://www.youtube.com/watch?v=${videoId}` : '';
+						   const currentTime = typeof player.getCurrentTime() === 'number' ? player.getCurrentTime() : 0;
+
+						   // Build event_source_data object
+						   const eventSourceData = {
+							   video_id: videoId,
+							   video_title: videoTitle,
+							   video_url: videoUrl,
+							state_change: stateKey,
+							   current_time: currentTime
+						   };
+
+						   // Primary value: video title, state change, and formatted current time
+						   const hours = Math.floor( currentTime / 3600 );
+						   const minutes = Math.floor( ( currentTime % 3600 ) / 60 );
+						   const seconds = Math.floor( currentTime % 60 );
+						   const timeStr = `${hours}:${minutes.toString().padStart( 2, '0' )}:${seconds.toString().padStart( 2, '0' )}`;
+						const primaryValue = `${videoTitle}: ${stateKey} (${timeStr})`;
+						   sendEventBeacon( endpoint, trackedEvent.slug, primaryValue, eventSourceData );
+					   }
+				   }
+			   } );
+		}
+	}
+
+}
+
 // ========== Event Transmission ==========
 
 /**
@@ -198,28 +364,38 @@ function setupPodiumEventTracking( trackedEvent, endpoint ) {
  * @param {string} endpoint - The REST API endpoint URL
  * @param {string} eventSlug - The event type slug
  * @param {string} primaryValue - The primary value for the event
+ * @param {Object|null} eventSourceData - Optional event source specific data
  */
-function sendEventBeacon( endpoint, eventSlug, primaryValue ) {
+function sendEventBeacon( endpoint, eventSlug, primaryValue, eventSourceData = null ) {
 	const trafficSource = determineTrafficSource();
 	const deviceType = getDeviceType();
 	const pagePath = window.location.pathname + window.location.search;
 	const browserFamily = getBrowserFamily();
 	const osFamily = getOsFamily();
 
+	// Payload uses snake_case for REST API parameters (not camelCase).
+	// This is standard REST API convention, matching WordPress patterns.
+	// Do not succumb to the urge to refactor these to camelCase
+	const payload = {
+		event_type: eventSlug,
+		primary_value: primaryValue,
+		traffic_source: trafficSource,
+		device_type: deviceType,
+		page_url: pagePath,
+		browser_family: browserFamily,
+		os_family: osFamily
+	};
+
+	if ( eventSourceData !== null ) {
+		payload.event_source_data = eventSourceData;
+	}
+
 	// Use sendBeacon for reliable delivery even during page unload
 	// https://developer.mozilla.org/en-US/docs/Web/API/Navigator/sendBeacon
 	navigator.sendBeacon(
 		endpoint,
 		new Blob(
-			[ JSON.stringify( {
-				event_type: eventSlug,
-				primary_value: primaryValue,
-				traffic_source: trafficSource,
-				device_type: deviceType,
-				page_url: pagePath,
-				browser_family: browserFamily,
-				os_family: osFamily
-			} ) ],
+			[ JSON.stringify( payload ) ],
 			{ type: 'application/json' }
 		)
 	);
@@ -443,4 +619,39 @@ function getOsFamily() {
 	}
 
 	return 'Other';
+}
+
+/**
+ * Safely run querySelectorAll with error handling
+ * @param {any} maybeSelector
+ * @param {string} slug - Event slug for logging
+ * @returns {Array<Element>} Array of matched elements, or [] if invalid selector
+ */
+function validateSelectorAll(maybeSelector, slug) {
+	try {
+		return Array.from(document.querySelectorAll(maybeSelector));
+	} catch (e) {
+		console.error(`wego-traffic-source: Invalid selector ${maybeSelector} for ${slug}`);
+		return [];
+	}
+}
+
+/**
+ * Safely run Element.closest with error handling
+ * @param {EventTarget|null} contextEl
+ * @param {any} maybeSelector
+ * @param {string} slug - Event slug for logging
+ * @returns {Element|null} Closest matching element, or null if invalid selector
+ */
+function validateClosest(contextEl, maybeSelector, slug) {
+	if ( ! ( contextEl instanceof Element ) ) {
+		return null;
+	}
+
+	try {
+		return contextEl.closest(maybeSelector);
+	} catch (e) {
+		console.error(`wego-traffic-source: Invalid selector \`${maybeSelector}\` for ${slug}`);
+		return null;
+	}
 }
