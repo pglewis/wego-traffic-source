@@ -2,7 +2,7 @@
 /*
 Plugin Name: WeGo Traffic Source
 Description: Auto-fills traffic source form fields and tracks configurable click events (tel links, booking links, etc.)
-Version: 2.3.1
+Version: 2.3.2
 Requires at least: 6.5
 Requires PHP: 7.4
 Author: WeGo Unlimited
@@ -12,9 +12,17 @@ Text Domain: wego-traffic-source
 Domain Path: /languages/
 */
 
-// GitHub updater settings: define constants for username and repo
-define( 'WEGO_GITHUB_USERNAME', 'pglewis' );
-define( 'WEGO_GITHUB_REPO', 'wego-traffic-source' );
+/**
+ * Load Composer dependencies
+ */
+if ( file_exists( __DIR__ . '/vendor/autoload.php' ) ) {
+	require_once __DIR__ . '/vendor/autoload.php';
+}
+
+/**
+ * Load recovery handler
+ */
+require_once __DIR__ . '/class-wego-autoloader-recovery.php';
 
 /**
  * Load supporting classes
@@ -22,7 +30,6 @@ define( 'WEGO_GITHUB_REPO', 'wego-traffic-source' );
 require_once __DIR__ . '/class-wego-tracked-event-settings.php';
 require_once __DIR__ . '/class-wego-dynamic-event-post-type.php';
 require_once __DIR__ . '/class-wego-migrations.php';
-require_once __DIR__ . '/class-wego-plugin-updater.php';
 
 /**
  * Load event source classes
@@ -55,6 +62,8 @@ add_action( 'plugins_loaded', [ 'WeGo_Migrations', 'run' ], 5 );
 class WeGo_Traffic_Source {
 	const REST_NAMESPACE = 'wego/v1';
 	const REST_TRACK_EVENT_ROUTE = '/track-event';
+	const GITHUB_USERNAME = 'pglewis';
+	const GITHUB_REPO = 'wego-traffic-source';
 
 	public static $plugin_url;
 	public static $plugin_dir;
@@ -95,8 +104,13 @@ class WeGo_Traffic_Source {
 			WeGo_Tracked_Event_Settings::init();
 			WeGo_Migrations::init_admin_notices();
 
-			// Initialize GitHub auto-updates
-			new WeGo_Plugin_Updater( __FILE__, WEGO_GITHUB_USERNAME, WEGO_GITHUB_REPO );
+			// Check for missing autoload and trigger recovery if needed
+			if ( ! class_exists( 'WeGo_Plugin_Updater' ) ) {
+				WeGo_Autoloader_Recovery::attempt( __FILE__, self::GITHUB_USERNAME, self::GITHUB_REPO );
+			} else {
+				// Initialize GitHub auto-updates
+				new WeGo_Plugin_Updater( __FILE__, self::GITHUB_USERNAME, self::GITHUB_REPO );
+			}
 		}
 
 		// Dynamic event CPTs need to register on init (reads from options, no timing issues)

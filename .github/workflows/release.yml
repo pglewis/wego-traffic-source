@@ -16,13 +16,43 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '7.4'
+
+      - name: Install Composer dependencies
+        run: |
+          composer install --no-dev --optimize-autoloader
+
       - name: Create custom plugin ZIP
         env:
           PLUGIN_SLUG: ${{ github.event.repository.name }}
         run: |
           ZIP_FILE="$PLUGIN_SLUG.zip"
-          # Use git archive to create a clean zip with the correct folder prefix
-          git archive --format=zip --output="$ZIP_FILE" HEAD --prefix=$PLUGIN_SLUG/
+          TEMP_DIR=$(mktemp -d)
+
+          # Copy plugin files to temp directory with correct folder prefix
+          cp -r . "$TEMP_DIR/$PLUGIN_SLUG"
+
+          # Remove unwanted files and folders
+          rm -rf "$TEMP_DIR/$PLUGIN_SLUG/.git"
+          rm -rf "$TEMP_DIR/$PLUGIN_SLUG/.github"
+          rm -rf "$TEMP_DIR/$PLUGIN_SLUG/.gitignore"
+          rm -f "$TEMP_DIR/$PLUGIN_SLUG/composer.json"
+          rm -f "$TEMP_DIR/$PLUGIN_SLUG/composer.lock"
+
+          # Verify vendor directory exists before zipping
+          if [ ! -d "$TEMP_DIR/$PLUGIN_SLUG/vendor" ]; then
+            echo "✗ ERROR: vendor directory not found in $TEMP_DIR/$PLUGIN_SLUG"
+            exit 1
+          fi
+          echo "✓ Vendor directory confirmed in build"
+
+          # Create the zip from the temp directory
+          cd "$TEMP_DIR"
+          zip -r "$OLDPWD/$ZIP_FILE" "$PLUGIN_SLUG"
+          cd "$OLDPWD"
 
           # Verify the file was created
           if [ -f "$ZIP_FILE" ]; then

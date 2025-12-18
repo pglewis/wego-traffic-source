@@ -1,0 +1,55 @@
+{
+    "_readme": [
+        "This file locks the dependencies of your project to a known state",
+        "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
+        "This file is @generated automatically"
+    ],
+    "content-hash": "5ea357a82a44966dabb951699fb26fcc",
+    "packages": [
+        {
+            "name": "pglewis/wego-plugin-updater",
+            "version": "1.0.1",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/pglewis/wego-plugin-updater.git",
+                "reference": "be215879c8427cd9703e40215a92eb197c996710"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/pglewis/wego-plugin-updater/zipball/be215879c8427cd9703e40215a92eb197c996710",
+                "reference": "be215879c8427cd9703e40215a92eb197c996710",
+                "shasum": ""
+            },
+            "type": "library",
+            "autoload": {
+                "files": [
+                    "src/WeGo_Plugin_Updater.php"
+                ]
+            },
+            "license": [
+                "MIT"
+            ],
+            "authors": [
+                {
+                    "name": "WeGo Unlimited",
+                    "role": "Developer"
+                }
+            ],
+            "description": "WordPress GitHub plugin updater - automatic updates from GitHub releases",
+            "support": {
+                "source": "https://github.com/pglewis/wego-plugin-updater/tree/1.0.1",
+                "issues": "https://github.com/pglewis/wego-plugin-updater/issues"
+            },
+            "time": "2025-12-17T21:20:24+00:00"
+        }
+    ],
+    "packages-dev": [],
+    "aliases": [],
+    "minimum-stability": "stable",
+    "stability-flags": [],
+    "prefer-stable": false,
+    "prefer-lowest": false,
+    "platform": [],
+    "platform-dev": [],
+    "plugin-api-version": "2.6.0"
+}
