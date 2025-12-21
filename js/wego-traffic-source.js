@@ -73,7 +73,8 @@ const EVENT_SOURCE_TYPE_YOUTUBE_VIDEO = 'youtube_video';
 const FORM_FIELD_TARGET_VALUE = 'wego-traffic-source';
 const SELECTOR_CONFIG_DATA_SCRIPT = 'script.wego-tracking-config';
 
-// Main execution
+// ========== Main Execution ==========
+
 setupEventTracking();
 storeTrafficSourceData();
 populateFormFields();
@@ -149,24 +150,25 @@ function setupEventTracking() {
 	}
 }
 
-// ========== Event Tracking Setup ==========
+// ========== Links ==========
 
 /**
  * Set up click tracking for link-based events
- *
- * @param {WeGoTrackedEvent} trackedEvent - The tracked event configuration
- * @param {string} endpoint - The REST API endpoint URL
- */
+*
+* @param {WeGoTrackedEvent} trackedEvent - The tracked event configuration
+* @param {string} endpoint - The REST API endpoint URL
+*/
 function setupLinkClickTracking( trackedEvent, endpoint ) {
 	// Check if there are any links matching the selector
-	const links = validateSelectorAll(trackedEvent.eventSource.selector, trackedEvent.slug);
-	if (!links.length) {
+	const links = validateSelectorAll( trackedEvent.eventSource.selector, trackedEvent.slug );
+
+	if ( !links.length ) {
 		// No matching targets, nothing to track
 		return;
 	}
 
 	document.addEventListener( 'click', ( e ) => {
-		const target = validateClosest(e.target, trackedEvent.eventSource.selector, trackedEvent.slug);
+		const target = validateClosest( e.target, trackedEvent.eventSource.selector, trackedEvent.slug );
 		if ( !target || !target.hasAttribute( 'href' ) ) {
 			return;
 		}
@@ -175,30 +177,131 @@ function setupLinkClickTracking( trackedEvent, endpoint ) {
 	} );
 }
 
+// ========== Forms ==========
+
 /**
  * Set up tracking for form submission events
+ *
+ * All AJAX submit support requires requires `jQuery.on()`; no native event support
+ *
+ * TODO: Haven't found a way to track non-ajax Gravity forms yet
  *
  * @param {WeGoTrackedEvent} trackedEvent - The form submit tracked event configuration
  * @param {string} endpoint - The REST API endpoint URL
  */
 function setupFormSubmitTracking( trackedEvent, endpoint ) {
+	const CF7_AJAX_EVENT = 'wpcf7mailsent';
+	const FORMIDABLE_AJAX_CLASS = 'frm_ajax_submit';
+	const FORMIDABLE_AJAX_EVENT = 'frmFormComplete';
+	const GRAVITY_AJAX_EVENT = 'gform_confirmation_loaded';
+	const NINJA_AJAX_EVENT = 'nfFormSubmitResponse';
+
 	// Check if there are any forms matching the selector
-	const forms = validateSelectorAll(trackedEvent.eventSource.selector, trackedEvent.slug);
-	if (!forms.length) {
-		// No matching targets, nothing to track
+	const forms = validateSelectorAll( trackedEvent.eventSource.selector, trackedEvent.slug );
+
+	if ( !forms.length ) {
+		// No matching targets, nothing to track or listen for
 		return;
 	}
 
+	/**
+	 * General form submit events that match the selector
+	 */
 	document.addEventListener( 'submit', ( e ) => {
-		const form = validateClosest(e.target, trackedEvent.eventSource.selector, trackedEvent.slug);
-		if ( !form ) {
+		const form = validateClosest( e.target, trackedEvent.eventSource.selector, trackedEvent.slug );
+
+		// Some AJAX submits will still fire form submit so we need to ignore those
+		function shouldNotListen( formElement ) {
+			return (
+				formElement.classList.contains( 'wpcf7-form' )
+				||  !!formElement.closest('.wpcf7')
+				|| form.classList.contains( FORMIDABLE_AJAX_CLASS )
+			);
+		};
+
+		if ( !form || shouldNotListen( form ) ) {
 			return;
 		}
-		// Use form ID, action URL, or fallback to 'unknown-form'
-		const primaryValue = form.id || form.action || 'unknown-form';
-		sendEventBeacon( endpoint, trackedEvent.slug, primaryValue );
+
+		handleFormSubmit( form );
 	} );
+
+	/**
+	 * Gravity Forms AJAX submit support
+	 *
+	 * Haven't figured out how to detect non AJAX submits yet (native form
+	 * submit is thwarted) and only the form ID is available. Because form
+	 * plugins hate you.
+	 */
+	jQuery( document ).on( GRAVITY_AJAX_EVENT, function( event, formId ) {
+		// Form is gone by this point, this is duct tape until 2.4
+		handleFormSubmit( null, `Gravity Form ID ${formId}` );
+	} );
+
+	/**
+	 * Formidable Forms AJAX submit support
+	 *
+	 * Best labelling is to set the title, though it's only discoverable in a
+	 * screen reader legend inside the form.  This is because form plugins hate
+	 * you.
+	 */
+	jQuery( document ).on( FORMIDABLE_AJAX_EVENT, function( event, /** @type {HTMLFormElement} */ form ) {
+		// Legend should be the form title, grab it and use it if it exists
+		const legendText = form.querySelector( 'legend' )?.textContent?.trim() || '';
+		handleFormSubmit( form, legendText );
+	} );
+
+	/**
+	 * Ninja Forms AJAX submit support
+	 */
+	jQuery( document ).on( NINJA_AJAX_EVENT, function( event, response ) {
+		const formTitle = String( response?.response?.data?.settings?.title || "" );
+		const formId = response?.id;
+		const formContainer = formId ? document.querySelector( `#nf-form-${formId}-cont` ) : null;
+		const formElement = formContainer?.querySelector( 'form' ) || null;
+
+		if ( !formElement ) {
+			console.error( 'wego-traffic-source: Could not find form element for Ninja Forms AJAX submit.', {
+				response,
+				formId,
+				formContainer
+			} );
+			return;
+		}
+
+		handleFormSubmit( formElement, formTitle );
+	} );
+
+	/**
+	 * Contact Form 7 AJAX submit support
+	 *
+	 * Best labelling is to set the title
+	 */
+	document.addEventListener( CF7_AJAX_EVENT, function( event ) {
+		handleFormSubmit( event.target );
+	} );
+
+	/**
+	 * Handle form submission and send beacon
+	 *
+	 * @param {any} form - Form element from event
+	 * @param {string} primaryValue Will override and be used as the primary value if set
+	 */
+	function handleFormSubmit( form, primaryValue = "" ) {
+		primaryValue =
+			primaryValue
+			|| form?.title
+			|| form?.ariaLabel
+			|| form?.id
+			|| form?.name
+			|| form?.getAttribute?.( 'role' )
+			|| form?.action
+			|| 'Unknown form';
+		sendEventBeacon( endpoint, trackedEvent.slug, primaryValue );
+	}
 }
+
+// ========== Podium Widget Events ==========
 
 /**
  * Set up tracking for Podium widget events
@@ -216,8 +319,8 @@ function setupPodiumEventTracking( trackedEvent, endpoint ) {
 	 * Podium widget event callback
 	 *
 	 * Note: There's no real use case for more than a single Podium tracked
-	 * event so we assume should never be more than one and blindly overwrite
-	 * any previous PodiumEventsCallback instance.
+	 * event so we assume there should never be more than one and blindly
+	 * overwrite any previous PodiumEventsCallback instance.
 	 *
 	 * @param {string} eventName - The Podium event name that triggered
 	 * @param {any} properties - Additional event properties from Podium
@@ -230,6 +333,8 @@ function setupPodiumEventTracking( trackedEvent, endpoint ) {
 	};
 }
 
+// ========== YouTube ==========
+
 /**
  * Set up tracking for YouTube video events
  *
@@ -237,60 +342,60 @@ function setupPodiumEventTracking( trackedEvent, endpoint ) {
  * @param {string} endpoint - The REST API endpoint URL
  */
 function setupYouTubeEventTracking( trackedEvent, endpoint ) {
-	   // Validate that we have states to track
-	   if ( !trackedEvent.eventSource.states || !Array.isArray( trackedEvent.eventSource.states ) ) {
-		   return;
-	   }
-	   // YouTube player state constants
-	   const YT_STATE_ENDED = 0;
-	   const YT_STATE_PLAYING = 1;
-	   const YT_STATE_PAUSED = 2;
-	   const YT_STATE_BUFFERING = 3;
+	// Validate that we have states to track
+	if ( !trackedEvent.eventSource.states || !Array.isArray( trackedEvent.eventSource.states ) ) {
+		return;
+	}
+	// YouTube player state constants
+	const YT_STATE_ENDED = 0;
+	const YT_STATE_PLAYING = 1;
+	const YT_STATE_PAUSED = 2;
+	const YT_STATE_BUFFERING = 3;
 
-	   // Map state numbers to display-ready state names (matching PHP canonical values)
-	   const stateMap = {
-		   [YT_STATE_PLAYING]: 'Playing',
-		   [YT_STATE_PAUSED]: 'Paused',
-		   [YT_STATE_ENDED]: 'Ended',
-		   [YT_STATE_BUFFERING]: 'Buffering',
-	   };
+	// Map state numbers to display-ready state names (matching PHP canonical values)
+	const stateMap = {
+		[YT_STATE_PLAYING]: 'Playing',
+		[YT_STATE_PAUSED]: 'Paused',
+		[YT_STATE_ENDED]: 'Ended',
+		[YT_STATE_BUFFERING]: 'Buffering',
+	};
 
 	// Look for iframes that match the selector
-	const iframes = validateSelectorAll(trackedEvent.eventSource.selector, trackedEvent.slug);
-	if (!iframes.length) {
+	const iframes = validateSelectorAll( trackedEvent.eventSource.selector, trackedEvent.slug );
+	if ( !iframes.length ) {
 		// No matching targets, nothing to track
 		return;
 	}
 
 	// Start the loading process only if we have targets
-	loadYouTubeAPI(iframes);
+	loadYouTubeAPI( iframes );
 
 	/**
 	 * Load YouTube IFrame API if not already loaded
 	 */
-	function loadYouTubeAPI(iframes) {
+	function loadYouTubeAPI( iframes ) {
 		// Check if API is already loaded
-		if (typeof window.YT !== 'undefined' && typeof window.YT.Player === 'function') {
-			initializePlayers(iframes);
+		if ( typeof window.YT !== 'undefined' && typeof window.YT.Player === 'function' ) {
+			initializePlayers( iframes ) ;
 			return;
 		}
 
 		// Set up callback for when API loads
 		window.onYouTubeIframeAPIReady = function() {
-			initializePlayers(iframes);
+			initializePlayers( iframes );
 		};
 
 		// Inject YouTube IFrame API script
-		const tag = document.createElement('script');
+		const tag = document.createElement( 'script' );
 		tag.src = 'https://www.youtube.com/iframe_api';
-		const firstScriptTag = document.getElementsByTagName('script')[0];
-		firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
+		const firstScriptTag = document.getElementsByTagName( 'script' )[0];
+		firstScriptTag.parentNode.insertBefore( tag, firstScriptTag );
 	}
 
 	/**
 	 * Initialize YouTube players after API is ready
 	 */
-	function initializePlayers(iframes) {
+	function initializePlayers( iframes ) {
 		for ( const iframe of iframes ) {
 			// Skip if already initialized
 			if ( iframe.dataset.wegoYtInitialized ) {
@@ -312,45 +417,46 @@ function setupYouTubeEventTracking( trackedEvent, endpoint ) {
 				iframe.id = 'wego-yt-' + Math.random().toString( 36 ).substring( 2, 11 );
 			}
 
-			   // Create YT.Player instance
-			   new window.YT.Player( iframe.id, {
-				   events: {
-					   onStateChange: ( event ) => {
-						// ToDo: Probably should check the key exists for safety
+			// Create YT.Player instance
+			new window.YT.Player( iframe.id, {
+				events: {
+					onStateChange: ( event ) => {
+						// TODO: Probably should check the key exists for safety
 						const stateKey = stateMap[ event.data ];
 
-						   // Only track if this state is configured
-						if ( ! stateKey || ! trackedEvent.eventSource.states.includes( stateKey ) ) {
-							   return;
-						   }
+						// Only track if this state is configured
+						if ( !stateKey || !trackedEvent.eventSource.states.includes( stateKey ) ) {
+							return;
+						}
 
-						   // Get video information
-						   const player = event.target;
-						   const videoData = player.getVideoData();
-						   const videoId = videoData.video_id || '';
-						   const videoTitle = videoData.title || 'Unknown Video';
-						   const videoUrl = videoId ? `https://www.youtube.com/watch?v=${videoId}` : '';
-						   const currentTime = typeof player.getCurrentTime() === 'number' ? player.getCurrentTime() : 0;
+						// Get video information
+						const player = event.target;
+						const videoData = player.getVideoData();
+						const videoId = videoData.video_id || '';
+						const videoTitle = videoData.title || 'Unknown Video';
+						const videoUrl = videoId ? `https://www.youtube.com/watch?v=${videoId}` : '';
+						const currentTime = typeof player.getCurrentTime() === 'number' ? player.getCurrentTime() : 0;
 
-						   // Build event_source_data object
-						   const eventSourceData = {
-							   video_id: videoId,
-							   video_title: videoTitle,
-							   video_url: videoUrl,
+						// Build event_source_data object
+						const eventSourceData = {
+							video_id: videoId,
+							video_title: videoTitle,
+							video_url: videoUrl,
 							state_change: stateKey,
-							   current_time: currentTime
-						   };
+							current_time: currentTime
+						};
 
-						   // Primary value: video title, state change, and formatted current time
-						   const hours = Math.floor( currentTime / 3600 );
-						   const minutes = Math.floor( ( currentTime % 3600 ) / 60 );
-						   const seconds = Math.floor( currentTime % 60 );
-						   const timeStr = `${hours}:${minutes.toString().padStart( 2, '0' )}:${seconds.toString().padStart( 2, '0' )}`;
+						// Primary value: video title, state change, and formatted current time
+						const hours = Math.floor( currentTime / 3600 );
+						const minutes = Math.floor( ( currentTime % 3600 ) / 60 );
+						const seconds = Math.floor( currentTime % 60 );
+						const timeStr = `${hours}:${minutes.toString().padStart( 2, '0' )}:${seconds.toString().padStart( 2, '0' )}`;
 						const primaryValue = `${videoTitle}: ${stateKey} (${timeStr})`;
-						   sendEventBeacon( endpoint, trackedEvent.slug, primaryValue, eventSourceData );
-					   }
-				   }
-			   } );
+
+						sendEventBeacon( endpoint, trackedEvent.slug, primaryValue, eventSourceData );
+					}
+				}
+			} );
 		}
 	}
 
@@ -412,27 +518,27 @@ function storeTrafficSourceData() {
 	}
 
 	// Collect any UTM data
-	const url = new URL(window.location.href);
+	const url = new URL( window.location.href );
 	const utmParams = {};
-	const utmTags = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content'];
-	for (const param of utmTags) {
-		const value = url.searchParams.get(param);
-		if (value) {
+	const utmTags = [ 'utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content' ];
+	for ( const param of utmTags)  {
+		const value = url.searchParams.get( param );
+		if ( value ) {
 			utmParams[param] = value;
 		}
 	}
 
 	// Always save UTM data, even if empty
-	sessionStorage.setItem(STORAGE_KEY_UTM, JSON.stringify(utmParams));
+	sessionStorage.setItem( STORAGE_KEY_UTM, JSON.stringify( utmParams ) );
 
 	// Check for external referrer
 	let referrer = '';
-	if (document.referrer) {
+	if ( document.referrer ) {
 		// Don't log ourself as referrer
 		try {
-			const referrerUrl = new URL(document.referrer);
-			const currentUrl = new URL(window.location.href);
-			if (referrerUrl.hostname !== currentUrl.hostname) {
+			const referrerUrl = new URL( document.referrer );
+			const currentUrl = new URL( window.location.href );
+			if ( referrerUrl.hostname !== currentUrl.hostname ) {
 				referrer = document.referrer;
 			}
 		} catch {
@@ -443,7 +549,7 @@ function storeTrafficSourceData() {
 	}
 
 	// Always save referrer, even if empty. Trim to avoid whitespace-only values downstream.
-	sessionStorage.setItem(STORAGE_KEY_REFERRER, referrer.trim());
+	sessionStorage.setItem( STORAGE_KEY_REFERRER, referrer.trim() );
 }
 
 // Determine what to show for referrer
@@ -469,7 +575,7 @@ function determineTrafficSource() {
 		} catch {
 			// Malformed referrer: return a short, safe preview
 			const preview = storedRef.length > 100 ? storedRef.slice( 0, 100 ) + '…' : storedRef;
-			return `Malformed Referral: ${ preview }`;
+			return `Malformed Referral: ${preview}`;
 		}
 		const hostname = refUrl.hostname.toLowerCase();
 
@@ -495,7 +601,7 @@ function determineTrafficSource() {
 		}
 
 		// External referral (no match found)
-		return `Referral from ${ refUrl.hostname }`;
+		return `Referral from ${refUrl.hostname}`;
 	}
 
 	// "Direct" if we have no other information

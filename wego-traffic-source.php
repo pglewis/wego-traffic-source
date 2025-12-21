@@ -2,7 +2,7 @@
 /*
 Plugin Name: WeGo Traffic Source
 Description: Auto-fills traffic source form fields and tracks configurable click events (tel links, booking links, etc.)
-Version: 2.3.2
+Version: 2.3.3
 Requires at least: 6.5
 Requires PHP: 7.4
 Author: WeGo Unlimited
@@ -105,7 +105,7 @@ class WeGo_Traffic_Source {
 			WeGo_Migrations::init_admin_notices();
 
 			// Check for missing autoload and trigger recovery if needed
-			if ( ! class_exists( 'WeGo_Plugin_Updater' ) ) {
+			if ( ! file_exists( __DIR__ . '/vendor/autoload.php' ) ) {
 				WeGo_Autoloader_Recovery::attempt( __FILE__, self::GITHUB_USERNAME, self::GITHUB_REPO );
 			} else {
 				// Initialize GitHub auto-updates
@@ -149,6 +149,7 @@ class WeGo_Traffic_Source {
 		// run in strict mode and have module-level scope (top-level vars are not
 		// globals). Module scripts are deferred by default and execute after the
 		// document is parsed, so the DOM is available at execution time.
+		wp_enqueue_script('jquery');
 		wp_enqueue_script_module( 'wego-traffic-source', self::$plugin_url . 'js/wego-traffic-source.js', [], self::$plugin_version );
 	}
 
